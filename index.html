@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -7,376 +8,67 @@
     <style>
         body {
             margin: 0;
-            font-family: 'Arial', sans-serif;
+            overflow: hidden;
         }
 
-        .controls {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 1000;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .controls button {
-            padding: 12px 18px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .controls button:hover:not(:disabled) {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-            transform: translateY(-3px) scale(1.05);
-            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
-        }
-
-        .controls button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .info {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            right: 15px;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(45, 45, 45, 0.9));
-            color: white;
-            padding: 18px;
-            border-radius: 16px;
-            text-align: center;
-            z-index: 1000;
-            font-size: 15px;
-            font-weight: 500;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-
-        .target-indicator {
+        #scan-indicator {
             position: absolute;
             top: 50%;
             left: 50%;
+            width: 220px;
+            height: 220px;
             transform: translate(-50%, -50%);
-            width: 280px;
-            height: 170px;
-            border: 3px dashed rgba(102, 126, 234, 0.8);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: rgba(102, 126, 234, 0.9);
-            font-weight: bold;
-            font-size: 16px;
-            z-index: 500;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(102, 126, 234, 0.05));
-            backdrop-filter: blur(15px);
-            animation: pulse 2s infinite, float 3s ease-in-out infinite;
+            z-index: 10;
+            pointer-events: none;
         }
 
-        .error-message {
-            background: linear-gradient(135deg, rgba(231, 76, 60, 0.9), rgba(192, 57, 43, 0.9)) !important;
+        .corner {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 255, 0, 0.9);
         }
 
-        .success-message {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(56, 142, 60, 0.9)) !important;
+        .top-left {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
         }
 
-        .loading-message {
-            background: linear-gradient(135deg, rgba(52, 152, 219, 0.9), rgba(41, 128, 185, 0.9)) !important;
+        .top-right {
+            top: 0;
+            right: 0;
+            border-left: none;
+            border-bottom: none;
         }
 
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 0.7;
-            }
-
-            50% {
-                opacity: 1;
-            }
+        .bottom-left {
+            bottom: 0;
+            left: 0;
+            border-right: none;
+            border-top: none;
         }
 
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translate(-50%, -50%) translateY(0px);
-            }
-
-            50% {
-                transform: translate(-50%, -50%) translateY(-10px);
-            }
+        .bottom-right {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
         }
     </style>
-    <script>
-        let arSystem = null;
-        let isARStarted = false;
-        let sceneLoaded = false;
-
-        document.addEventListener("DOMContentLoaded", function () {
-            const sceneEl = document.querySelector('a-scene');
-            const startButton = document.querySelector("#start-button");
-            const stopButton = document.querySelector("#stop-button");
-            const pauseButton = document.querySelector("#pause-button");
-            const unpauseButton = document.querySelector("#unpause-button");
-            const infoDiv = document.querySelector("#info");
-            const targetIndicator = document.querySelector("#target-indicator");
-
-            // Disable buttons initially
-            function setButtonsState(starting = false, started = false) {
-                startButton.disabled = starting || started || !sceneLoaded;
-                stopButton.disabled = !started;
-                pauseButton.disabled = !started;
-                unpauseButton.disabled = !started;
-            }
-
-            function updateInfo(message, type = 'normal') {
-                infoDiv.innerHTML = message;
-                infoDiv.className = 'info';
-                if (type === 'error') {
-                    infoDiv.classList.add('error-message');
-                } else if (type === 'success') {
-                    infoDiv.classList.add('success-message');
-                } else if (type === 'loading') {
-                    infoDiv.classList.add('loading-message');
-                }
-            }
-
-            // Wait for scene to be fully loaded
-            function waitForARSystem() {
-                return new Promise((resolve, reject) => {
-                    let attempts = 0;
-                    const maxAttempts = 50; // 5 seconds max
-
-                    const checkSystem = () => {
-                        attempts++;
-                        console.log(`Checking AR system... Attempt ${attempts}`);
-
-                        if (sceneEl.systems && sceneEl.systems["mindar-image-system"]) {
-                            arSystem = sceneEl.systems["mindar-image-system"];
-                            console.log("AR System found:", arSystem);
-                            resolve(arSystem);
-                        } else if (attempts >= maxAttempts) {
-                            reject(new Error("AR System not found after maximum attempts"));
-                        } else {
-                            setTimeout(checkSystem, 100);
-                        }
-                    };
-
-                    checkSystem();
-                });
-            }
-
-            // Check camera permissions
-            async function checkCameraPermission() {
-                try {
-                    updateInfo("🔍 Checking camera permissions...", 'loading');
-
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    });
-
-                    // Stop the test stream
-                    stream.getTracks().forEach(track => track.stop());
-                    updateInfo("✅ Camera permission granted", 'success');
-                    return true;
-                } catch (error) {
-                    console.error('Camera permission error:', error);
-                    updateInfo(`❌ Camera Error: ${error.message}. Please allow camera access and refresh.`, 'error');
-                    return false;
-                }
-            }
-
-            // Scene loaded event
-            sceneEl.addEventListener('loaded', async function () {
-                console.log('A-Frame scene loaded');
-                sceneLoaded = true;
-                updateInfo("🔄 Initializing AR System...", 'loading');
-
-                try {
-                    // Wait for AR system to be available
-                    await waitForARSystem();
-                    updateInfo("✨ AR System ready - Click 'Start AR' to begin", 'success');
-                    setButtonsState();
-                } catch (error) {
-                    console.error('Failed to initialize AR system:', error);
-                    updateInfo("❌ Failed to initialize AR system. Please refresh the page.", 'error');
-                }
-            });
-
-            // AR System Events
-            sceneEl.addEventListener("arReady", (event) => {
-                console.log("MindAR is ready");
-                updateInfo("🎯 AR Active - Point camera at any target image", 'success');
-                isARStarted = true;
-                setButtonsState(false, true);
-                targetIndicator.style.display = 'flex';
-            });
-
-            sceneEl.addEventListener("arError", (event) => {
-                console.error("MindAR error:", event);
-                updateInfo("❌ AR Error - Please check camera permissions and try again", 'error');
-                isARStarted = false;
-                setButtonsState();
-                targetIndicator.style.display = 'none';
-            });
-
-            // Target Detection
-            const oscarTarget = document.querySelector('#oscar-target');
-
-            if (oscarTarget) {
-                oscarTarget.addEventListener("targetFound", event => {
-                    console.log("Target detected!");
-                    updateInfo("🎯 Target Detected! ✨ Beautiful layout activated", 'success');
-                    targetIndicator.style.display = 'none';
-                });
-
-                oscarTarget.addEventListener("targetLost", event => {
-                    console.log("Target lost");
-                    updateInfo("📱 Target Lost - Point camera at target image");
-                    if (isARStarted) {
-                        targetIndicator.style.display = 'flex';
-                    }
-                });
-            }
-
-            // Button Event Listeners
-            startButton.addEventListener('click', async () => {
-                console.log("Starting AR...");
-                setButtonsState(true, false);
-                updateInfo("🚀 Starting AR...", 'loading');
-
-                try {
-                    // Check if AR system is available
-                    if (!arSystem) {
-                        updateInfo("🔄 Waiting for AR system...", 'loading');
-                        await waitForARSystem();
-                    }
-
-                    // Check camera permission
-                    const hasPermission = await checkCameraPermission();
-                    if (!hasPermission) {
-                        setButtonsState();
-                        return;
-                    }
-
-                    // Start AR
-                    updateInfo("🎬 Starting camera...", 'loading');
-                    await arSystem.start();
-                    updateInfo("📱 AR Started - Point camera at target image", 'success');
-
-                } catch (error) {
-                    console.error("Failed to start AR:", error);
-                    updateInfo(`❌ Failed to start AR: ${error.message}`, 'error');
-                    setButtonsState();
-                }
-            });
-
-            stopButton.addEventListener('click', () => {
-                console.log("Stopping AR...");
-                try {
-                    if (arSystem) {
-                        arSystem.stop();
-                    }
-                    updateInfo("⏹️ AR Stopped");
-                    isARStarted = false;
-                    setButtonsState();
-                    targetIndicator.style.display = 'none';
-                } catch (error) {
-                    console.error("Error stopping AR:", error);
-                    updateInfo("❌ Error stopping AR", 'error');
-                }
-            });
-
-            pauseButton.addEventListener('click', () => {
-                try {
-                    if (arSystem) {
-                        arSystem.pause();
-                    }
-                    updateInfo("⏸️ AR Paused");
-                } catch (error) {
-                    console.error("Error pausing AR:", error);
-                }
-            });
-
-            unpauseButton.addEventListener('click', () => {
-                try {
-                    if (arSystem) {
-                        arSystem.unpause();
-                    }
-                    updateInfo("▶️ AR Resumed - Point at target image", 'success');
-                } catch (error) {
-                    console.error("Error resuming AR:", error);
-                }
-            });
-
-            // Interactive elements
-            const rightCard = document.querySelector("#right-blue-card");
-            const bottomCard = document.querySelector("#bottom-blue-card");
-
-            if (rightCard) {
-                rightCard.addEventListener("click", event => {
-                    console.log("Portfolio card clicked");
-                    rightCard.setAttribute('animation__click', 'property: scale; to: 1.15 1.15 1.15; dur: 300; dir: alternate; loop: 2; easing: easeOutElastic');
-                });
-            }
-
-            if (bottomCard) {
-                bottomCard.addEventListener("click", event => {
-                    console.log("Contact card clicked");
-                    bottomCard.setAttribute('animation__click', 'property: rotation; to: 0 0 720; dur: 1500; easing: easeInOutBack');
-                });
-            }
-
-            // Error handling
-            window.addEventListener('error', (e) => {
-                console.error('Page error:', e);
-                updateInfo("❌ An error occurred. Please refresh the page.", 'error');
-            });
-
-            // Initial setup
-            setButtonsState();
-            updateInfo("🔄 Loading A-Frame scene...", 'loading');
-        });
-    </script>
 </head>
 
 <body>
-    <div class="controls">
-        <button id="start-button">🚀 Start AR</button>
-        <button id="pause-button">⏸️ Pause</button>
-        <button id="unpause-button">▶️ Resume</button>
-        <button id="stop-button">⏹️ Stop</button>
+    <div id="scan-indicator">
+        <div class="corner top-left"></div>
+        <div class="corner top-right"></div>
+        <div class="corner bottom-left"></div>
+        <div class="corner bottom-right"></div>
     </div>
 
-    <div id="target-indicator" class="target-indicator" style="display: none;">
-        ✨ Point camera at<br><strong>any target image</strong>
-    </div>
-
-    <div id="info" class="info">
-        🔄 Loading A-Frame scene...
-    </div>
-
-    <!-- AR Scene với proper initialization -->
     <a-scene
-        mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; autoStart: false; showStats: false; uiLoading: no; uiScanning: no; uiError: no;"
+        mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;"
         color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false" loading-screen="enabled: false">
 
@@ -386,68 +78,38 @@
 
         <a-entity id="oscar-target" mindar-image-target="targetIndex: 0">
 
-            <!-- Main Business Card -->
-            <a-plane position="0 0 0.01" width="1" height="0.6" color="#ffffff" opacity="0.98"
-                animation__float="property: position; to: 0 0.02 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine">
-
-                <a-text value="OSCAR FALMER" position="0 0.15 0.01" align="center" color="#2c3e50" scale="0.7 0.7 0.7"
-                    font="kelsonsans">
-                </a-text>
-
-                <a-text value="Digital Innovation Expert" position="0 0.05 0.01" align="center" color="#7f8c8d"
-                    scale="0.35 0.35 0.35">
-                </a-text>
-
-                <a-cylinder position="0 -0.1 0.01" radius="0.08" height="0.005" segments-radial="6" color="#3498db"
-                    animation__spin="property: rotation; to: 0 360 0; loop: true; dur: 8000">
-                </a-cylinder>
-            </a-plane>
-
-            <!-- Right Portfolio Card -->
-            <a-plane id="right-blue-card" class="clickable" position="1.2 0 0.01" width="1" height="0.6" color="#3498db"
-                opacity="0.95" animation__hover="property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400"
-                animation__unhover="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400"
-                animation__float="property: position; to: 1.2 0.03 0.01; dir: alternate; loop: true; dur: 3500">
-
-                <a-text value="PORTFOLIO" position="0 0.2 0.01" align="center" color="white" scale="0.6 0.6 0.6"
-                    font="kelsonsans">
-                </a-text>
-
-                <a-text value="View My Projects" position="0 0.08 0.01" align="center" color="#ecf0f1"
-                    scale="0.32 0.32 0.32">
-                </a-text>
-
-                <a-box position="0 -0.08 0.01" width="0.16" height="0.16" depth="0.02" color="#ffffff"
-                    animation__rotate="property: rotation; to: 0 0 360; loop: true; dur: 6000">
-                </a-box>
-            </a-plane>
-
-            <!-- Bottom Contact Card -->
-            <a-plane id="bottom-blue-card" class="clickable" position="0 -0.8 0.01" width="1" height="0.6"
-                color="#e74c3c" opacity="0.95"
+            <!-- Right Portfolio Card - Gần sát hơn nữa -->
+            <a-plane class="clickable" position="1.1 0 0.01" width="1" height="0.6" color="#3498db" opacity="0.95"
                 animation__hover="property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400"
                 animation__unhover="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400"
-                animation__float="property: position; to: 0 -0.77 0.01; dir: alternate; loop: true; dur: 4000">
-
-                <a-text value="CONTACT" position="0 0.2 0.01" align="center" color="white" scale="0.6 0.6 0.6"
-                    font="kelsonsans">
-                </a-text>
-
-                <a-text value="Get In Touch" position="0 0.08 0.01" align="center" color="#ecf0f1"
-                    scale="0.32 0.32 0.32">
-                </a-text>
-
-                <a-cylinder position="0 -0.08 0.01" radius="0.08" height="0.02" color="#ffffff"
-                    animation__spin="property: rotation; to: 0 360 0; loop: true; dur: 5000">
-                </a-cylinder>
+                animation__float="property: position; to: 1.1 0.03 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine">
+                <a-text value="View Portfolio" position="0 0 0.01" align="center" color="#ffffff"
+                    scale="0.5 0.5 0.5"></a-text>
             </a-plane>
 
-            <!-- Lighting -->
-            <a-light type="ambient" color="#ffffff" intensity="0.8"></a-light>
-            <a-light type="point" position="0 0.5 0.5" color="#3498db" intensity="0.3"></a-light>
-
+            <!-- Bottom Contact Card - gần main card -->
+            <a-plane class="clickable" position="0 -0.65 0.01" width="1" height="0.6" color="#2980b9" opacity="0.95"
+                animation__hover="property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400"
+                animation__unhover="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400"
+                animation__float="property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine">
+                <a-text value="Contact Me" position="0 0 0.01" align="center" color="#ffffff"
+                    scale="0.5 0.5 0.5"></a-text>
+            </a-plane>
         </a-entity>
     </a-scene>
+
+    <script>
+        const scene = document.querySelector("a-scene");
+        const indicator = document.getElementById("scan-indicator");
+
+        scene.addEventListener("targetFound", () => {
+            indicator.style.display = "none";
+        });
+
+        scene.addEventListener("targetLost", () => {
+            indicator.style.display = "block";
+        });
+    </script>
 </body>
 
 </html>
