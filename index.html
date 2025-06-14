@@ -56,8 +56,8 @@
     <script>
         AFRAME.registerComponent('interactive-model', {
             schema: {
-                minScale: { type: 'number', default: 0.0002 },
-                maxScale: { type: 'number', default: 0.0008 },
+                minScale: { type: 'number', default: 0.0001 },
+                maxScale: { type: 'number', default: 0.0005 },
                 panSpeed: { type: 'number', default: 0.0008 },
                 rotateSpeed: { type: 'number', default: 0.4 },
                 zoomSpeed: { type: 'number', default: 0.00003 }
@@ -377,7 +377,7 @@
                     const portfolioPlane = document.createElement('a-plane');
                     portfolioPlane.setAttribute('class', 'clickable');
                     portfolioPlane.setAttribute('position', '1.1 -0.35 0.01');
-                    portfolioPlane.setAttribute('width', '1');
+                    portfolioPlane.setAttribute('width', '1]');
                     portfolioPlane.setAttribute('height', '1.2');
                     portfolioPlane.setAttribute('color', 'transparent');
                     portfolioPlane.setAttribute('opacity', '0.0');
@@ -390,20 +390,11 @@
                     modelEntity.setAttribute('class', 'model-entity clickable');
                     modelEntity.setAttribute('data-model-url', modelUrl);
                     modelEntity.setAttribute('data-loaded', 'false');
-                    modelEntity.setAttribute('position', '0 0.2 0.02');
-                    modelEntity.setAttribute('scale', '0.00001 0.00001 0.00001');
-                    modelEntity.setAttribute('visible', 'false');
+                    modelEntity.setAttribute('position', '-0.2 0.2 0.02');
+                    modelEntity.setAttribute('scale', '0.00001 0.00001 0.00001'); // Initial hidden scale
+                    modelEntity.setAttribute('visible', 'false'); // Initial hidden state
                     modelEntity.setAttribute('interactive-model', '');
                     portfolioPlane.appendChild(modelEntity);
-
-                    // Removed the 'View Portfolio' text element entirely
-                    // const portfolioText = document.createElement('a-text');
-                    // portfolioText.setAttribute('value', 'View Portfolio');
-                    // portfolioText.setAttribute('position', '0 -0.45 0.01');
-                    // portfolioText.setAttribute('align', 'center');
-                    // portfolioText.setAttribute('color', '#ffffff');
-                    // portfolioText.setAttribute('scale', '0.5 0.5 0.5');
-                    // portfolioPlane.appendChild(portfolioText);
 
                     arTarget.appendChild(portfolioPlane);
 
@@ -430,6 +421,8 @@
                     infoPlane.appendChild(infoText);
                     arTarget.appendChild(infoPlane);
 
+                    // --- START AUDIO CODE (COMMENTED OUT) ---
+                    /*
                     if (audioUrl) {
                         const audio = document.createElement('audio');
                         audio.setAttribute('src', audioUrl);
@@ -443,7 +436,7 @@
                         audioControlPlane.setAttribute('width', '0.2');
                         audioControlPlane.setAttribute('height', '0.2');
                         audioControlPlane.setAttribute('color', '#333333');
-                        audioControlPlane.setAttribute('opacity', '1.0'); // Set opacity to 1.0 for full visibility
+                        audioControlPlane.setAttribute('opacity', '1.0');
 
                         const audioIconText = document.createElement('a-text');
                         audioIconText.setAttribute('value', '🔇');
@@ -463,39 +456,57 @@
                                 audioIconText.setAttribute('value', '🔇');
                             }
                         });
-
-                        arTarget.addEventListener('targetFound', () => {
-                            console.log(`Target ${targetIndex} found, playing audio and loading model.`);
-                            audio.play().catch(e => console.error("Error playing audio on targetFound:", e));
-                            audioIconText.setAttribute('value', '🔊');
-
-                            const model = document.getElementById(`model-${targetIndex}`);
-                            if (model) {
-                                if (model.getAttribute('data-loaded') === 'false') {
-                                    model.setAttribute('gltf-model', `url(${model.getAttribute('data-model-url')})`);
-                                    model.setAttribute('data-loaded', 'true');
-                                    console.log(`Model for target ${targetIndex} loaded.`);
-                                }
-                                model.setAttribute('scale', '0.0005 0.0005 0.0005');
-                                model.setAttribute('visible', 'true');
-                                // Further increased duration for smoother rotation
-                                model.setAttribute('animation__rotate', 'property: rotation; to: 0 360 0; loop: true; dur: 30000; easing: linear'); // Increased to 30 seconds
-                            }
-                        });
-
-                        arTarget.addEventListener('targetLost', () => {
-                            console.log(`Target ${targetIndex} lost, pausing audio and hiding model.`);
-                            audio.pause();
-                            audioIconText.setAttribute('value', '🔇');
-
-                            const model = document.getElementById(`model-${targetIndex}`);
-                            if (model) {
-                                model.setAttribute('scale', '0.00001 0.00001 0.00001');
-                                model.setAttribute('visible', 'false');
-                                model.removeAttribute('animation__rotate');
-                            }
-                        });
                     }
+                    */
+                    // --- END AUDIO CODE (COMMENTED OUT) ---
+
+                    // Event listeners for target found/lost (now outside audio block)
+                    arTarget.addEventListener('targetFound', () => {
+                        console.log(`Target ${targetIndex} found, loading model.`);
+                        // --- START AUDIO-SPECIFIC LOGIC (COMMENTED OUT) ---
+                        /*
+                        if (audioUrl) {
+                            const audio = arTarget.querySelector('audio');
+                            const audioIconText = arTarget.querySelector('a-text[value="🔇"], a-text[value="🔊"]');
+                            if (audio) audio.play().catch(e => console.error("Error playing audio on targetFound:", e));
+                            if (audioIconText) audioIconText.setAttribute('value', '🔊');
+                        }
+                        */
+                        // --- END AUDIO-SPECIFIC LOGIC (COMMENTED OUT) ---
+
+                        const model = document.getElementById(`model-${targetIndex}`);
+                        if (model) {
+                            if (model.getAttribute('data-loaded') === 'false') {
+                                model.setAttribute('gltf-model', `url(${model.getAttribute('data-model-url')})`);
+                                model.setAttribute('data-loaded', 'true');
+                                console.log(`Model for target ${targetIndex} loaded.`);
+                            }
+                            model.setAttribute('scale', '0.0002 0.0002 0.0002'); // Adjusted initial scale for mobile
+                            model.setAttribute('visible', 'true');
+                            model.setAttribute('animation__rotate', 'property: rotation; to: 0 360 0; loop: true; dur: 30000; easing: linear');
+                        }
+                    });
+
+                    arTarget.addEventListener('targetLost', () => {
+                        console.log(`Target ${targetIndex} lost, hiding model.`);
+                        // --- START AUDIO-SPECIFIC LOGIC (COMMENTED OUT) ---
+                        /*
+                        if (audioUrl) {
+                            const audio = arTarget.querySelector('audio');
+                            const audioIconText = arTarget.querySelector('a-text[value="🔇"], a-text[value="🔊"]');
+                            if (audio) audio.pause();
+                            if (audioIconText) audioIconText.setAttribute('value', '🔇');
+                        }
+                        */
+                        // --- END AUDIO-SPECIFIC LOGIC (COMMENTED OUT) ---
+
+                        const model = document.getElementById(`model-${targetIndex}`);
+                        if (model) {
+                            model.setAttribute('scale', '0.00001 0.00001 0.00001'); // Hide by making very small
+                            model.setAttribute('visible', 'false'); // Hide explicitly
+                            model.removeAttribute('animation__rotate');
+                        }
+                    });
 
                     scene.appendChild(arTarget);
                 });
