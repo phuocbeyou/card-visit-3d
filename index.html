@@ -9,45 +9,508 @@
         body {
             margin: 0;
             overflow: hidden;
+            background-color: black;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: sans-serif;
+            font-size: 1.2em;
+        }
+
+        a-scene {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #loading-message::after {
+            content: '';
+            animation: ellipsis 1.2s infinite;
+        }
+
+        @keyframes ellipsis {
+            0% {
+                content: '.';
+            }
+
+            33% {
+                content: '..';
+            }
+
+            66% {
+                content: '...';
+            }
+
+            100% {
+                content: '';
+            }
         }
     </style>
 </head>
 
 <body>
-    <a-scene
-        mindar-image="imageTargetSrc: https://fuukyqvnitlhdhwygfcy.supabase.co/storage/v1/object/public/qnail//demo.mind; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;"
-        color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false"
-        device-orientation-permission-ui="enabled: false" loading-screen="enabled: false">
-
-        <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;"
-            raycaster="near: 10; far: 10000; objects: .clickable">
-        </a-camera>
-
-        <a-entity id="oscar-target" mindar-image-target="targetIndex: 0">
-
-            <!-- Right Portfolio Card - kéo dài từ trên xuống dưới nhưng không vượt Main Card -->
-            <a-plane class="clickable" position="1.1 -0.35 0.01" width="1" height="1.2" color="#3498db" opacity="0.95"
-                animation__hover="property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400"
-                animation__unhover="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400"
-                animation__float="property: position; to: 1.1 -0.32 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine">
-                <a-text value="View Portfolio" position="0 0 0.01" align="center" color="#ffffff"
-                    scale="0.5 0.5 0.5"></a-text>
-            </a-plane>
-
-
-            <!-- Bottom Contact Card - gần main card -->
-            <a-plane class="clickable" position="0 -0.65 0.01" width="1" height="0.6" color="#2980b9" opacity="0.95"
-                animation__hover="property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400"
-                animation__unhover="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400"
-                animation__float="property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine">
-                <a-text value="Contact Me" position="0 0 0.01" align="center" color="#ffffff"
-                    scale="0.5 0.5 0.5"></a-text>
-            </a-plane>
-        </a-entity>
-    </a-scene>
+    <div id="loading-message">Đang tải dữ liệu AR...</div>
 
     <script>
-        const scene = document.querySelector("a-scene");
+        AFRAME.registerComponent('interactive-model', {
+            schema: {
+                minScale: { type: 'number', default: 0.0002 },
+                maxScale: { type: 'number', default: 0.0008 },
+                panSpeed: { type: 'number', default: 0.0008 },
+                rotateSpeed: { type: 'number', default: 0.4 },
+                zoomSpeed: { type: 'number', default: 0.00003 }
+            },
+
+            init: function () {
+                this.isDragging = false;
+                this.isPanning = false;
+                this.lastX = 0;
+                this.lastY = 0;
+
+                this.throttledMouseMove = this.throttle(this.onMouseMove.bind(this), 16);
+
+                this.onMouseDown = this.onMouseDown.bind(this);
+                this.onMouseUp = this.onMouseUp.bind(this);
+                this.onMouseWheel = this.onMouseWheel.bind(this);
+
+                this.el.addEventListener('mousedown', this.onMouseDown);
+                this.el.addEventListener('mouseup', this.onMouseUp);
+                this.el.addEventListener('mousemove', this.throttledMouseMove);
+                this.el.addEventListener('wheel', this.onMouseWheel);
+            },
+
+            throttle: function (func, limit) {
+                let inThrottle;
+                return function () {
+                    const args = arguments;
+                    const context = this;
+                    if (!inThrottle) {
+                        func.apply(context, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                }
+            },
+
+            remove: function () {
+                this.el.removeEventListener('mousedown', this.onMouseDown);
+                this.el.removeEventListener('mouseup', this.onMouseUp);
+                this.el.removeEventListener('mousemove', this.throttledMouseMove);
+                this.el.removeEventListener('wheel', this.onMouseWheel);
+            },
+
+            onMouseDown: function (evt) {
+                this.isDragging = true;
+                this.isPanning = evt.shiftKey;
+                this.lastX = evt.clientX;
+                this.lastY = evt.clientY;
+            },
+
+            onMouseUp: function () {
+                this.isDragging = false;
+                this.isPanning = false;
+            },
+
+            onMouseMove: function (evt) {
+                if (!this.isDragging) { return; }
+
+                const deltaX = evt.clientX - this.lastX;
+                const deltaY = evt.clientY - this.lastY;
+
+                if (this.isPanning) {
+                    const currentPos = this.el.object3D.position;
+                    currentPos.x += deltaX * this.data.panSpeed;
+                    currentPos.y -= deltaY * this.data.panSpeed;
+
+                    const parentWidth = 0.7;
+                    const parentHeight = 0.9;
+                    const modelScale = this.el.object3D.scale.x;
+                    const modelHalfSize = modelScale * 15;
+
+                    const clampX = Math.max(0, (parentWidth / 2) - modelHalfSize);
+                    const clampY = Math.max(0, (parentHeight / 2) - modelHalfSize);
+
+                    currentPos.x = Math.max(-clampX, Math.min(clampX, currentPos.x));
+                    currentPos.y = Math.max(-clampY, Math.min(clampY, currentPos.y));
+
+                } else {
+                    const rotation = this.el.object3D.rotation;
+                    rotation.y += THREE.MathUtils.degToRad(deltaX * this.data.rotateSpeed);
+                    rotation.x += THREE.MathUtils.degToRad(deltaY * this.data.rotateSpeed);
+                }
+
+                this.lastX = evt.clientX;
+                this.lastY = evt.clientY;
+            },
+
+            onMouseWheel: function (evt) {
+                evt.preventDefault();
+
+                let newScale = this.el.object3D.scale.x - evt.deltaY * this.data.zoomSpeed;
+                newScale = Math.max(this.data.minScale, Math.min(this.data.maxScale, newScale));
+                this.el.object3D.scale.set(newScale, newScale, newScale);
+            }
+        });
+
+        const TOKEN_KEY = 'access_token';
+        const EXPIRES_KEY = 'expires_in';
+        const DATE_SAVE_KEY = 'date_save';
+        const IMAGE_TARGET_SRC = 'https://u2502-dev.dttt.vn/static/assets//app/wwwroot/uploads/2025/6/13/1b387430-7f76-44a4-bdb8-5feb2f0e2d9f_dataAPPAr.mind';
+
+        async function fetchNewToken() {
+            const payload = new URLSearchParams({
+                grant_type: 'password',
+                scope: 'password',
+                client_id: 'password',
+                client_secret: '083c426a-a3f7-f4ea-a70a-290c401b558f',
+                username: 'user3d',
+                password: '123456a@A'
+            });
+
+            const res = await fetch('https://u2502-dev-sso.dttt.vn/connect/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: payload.toString()
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Token fetch failed: ${res.status} ${res.statusText} - ${errorText}`);
+            }
+
+            const data = await res.json();
+            localStorage.setItem(TOKEN_KEY, data.access_token);
+            localStorage.setItem(EXPIRES_KEY, String(data.expires_in));
+            localStorage.setItem(DATE_SAVE_KEY, String(Date.now()));
+            return data.access_token;
+        }
+
+        function isTokenExpired() {
+            const token = localStorage.getItem(TOKEN_KEY);
+            const expiresIn = parseInt(localStorage.getItem(EXPIRES_KEY) || '0');
+            const dateSaved = parseInt(localStorage.getItem(DATE_SAVE_KEY) || '0');
+            if (!token || !expiresIn || !dateSaved) return true;
+            const now = Date.now();
+            const buffer = 5 * 24 * 60 * 60 * 1000;
+            return now - dateSaved >= (expiresIn * 1000 - buffer);
+        }
+
+        async function getValidToken() {
+            try {
+                if (isTokenExpired()) {
+                    console.log('🔄 Token expired or missing, fetching new one...');
+                    return await fetchNewToken();
+                }
+                console.log('✅ Using saved token.');
+                return localStorage.getItem(TOKEN_KEY) || "";
+            } catch (e) {
+                console.error('❌ Token error, attempting to fetch new one:', e);
+                return await fetchNewToken();
+            }
+        }
+
+        async function fetchHienVatSingle(id, token) {
+            const url = "https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/HienVat3D/GetData/FilterByHienVat";
+            const payload = {
+                filters: [
+                    {
+                        valueIsField: false,
+                        filters: [],
+                        stringCompareOption: 0,
+                        field: "id",
+                        operator: "eq",
+                        value: `"${id}"`,
+                    },
+                ],
+                sorts: [
+                    {
+                        field: "thuTu",
+                        dir: 1,
+                    },
+                ],
+                includes: [],
+                pageInfo: {
+                    page: 1,
+                    pageSize: 15,
+                },
+            };
+
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Failed to fetch HienVat data: ${res.status} ${res.statusText} - ${errorText}`);
+                }
+
+                const result = await res.json();
+                if (result.data && result.data.length > 0) {
+                    return result.data[0];
+                }
+                return null;
+            } catch (error) {
+                console.error("Error fetching HienVat data:", error);
+                throw error;
+            }
+        }
+
+        async function fetchHienVatList(token) {
+            const url = "https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/HienVat3D/GetHienVat3DList";
+
+            try {
+                const res = await fetch(url, {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`Failed to fetch HienVat list: ${res.status} ${res.statusText} - ${errorText}`);
+                }
+
+                const result = await res.json();
+                if (result.data && result.data.length > 0) {
+                    return result.data;
+                }
+                return [];
+            } catch (error) {
+                console.error("Error fetching HienVat list:", error);
+                throw error;
+            }
+        }
+
+        async function initializeARScene() {
+            const loadingMessage = document.getElementById('loading-message');
+            loadingMessage.textContent = "Đang tải dữ liệu AR...";
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+            const mutil = urlParams.get('mutil') === 'true';
+
+            let hienVatDataArray = [];
+
+            try {
+                const token = await getValidToken();
+
+                if (mutil) {
+                    console.log("Fetching multiple HienVat items...");
+                    const fetchedList = await fetchHienVatList(token);
+                    hienVatDataArray = fetchedList.filter(data => data.model3dPcJpg || data.model3dPcGlb);
+
+                    if (hienVatDataArray.length === 0) {
+                        alert("Không tìm thấy dữ liệu AR hợp lệ nào trong danh sách (có thể do thiếu mô hình 3D).");
+                        loadingMessage.textContent = "Không tìm thấy dữ liệu AR.";
+                        return;
+                    }
+                } else {
+                    if (!id) {
+                        loadingMessage.textContent = "Lỗi: Không có ID được cung cấp trong URL. Vui lòng sử dụng URL như: /index.html?id=1f0fdcaf-c992-4817-b095-1fb2d2b5cbd0";
+                        return;
+                    }
+                    console.log(`Fetching single HienVat item for ID: ${id}`);
+                    const singleData = await fetchHienVatSingle(id, token);
+                    if (singleData && (singleData.model3dPcJpg || singleData.model3dPcGlb)) {
+                        hienVatDataArray.push(singleData);
+                    } else {
+                        alert("Không tìm thấy dữ liệu cho ID này hoặc mô hình 3D bị thiếu. Vui lòng kiểm tra lại ID.");
+                        loadingMessage.textContent = "Không tìm thấy dữ liệu AR.";
+                        return;
+                    }
+                }
+
+                loadingMessage.textContent = "Đang khởi tạo cảnh AR...";
+
+                setTimeout(() => {
+                    loadingMessage.remove();
+                    document.body.style.backgroundColor = 'transparent';
+                }, 500);
+
+                const scene = document.createElement('a-scene');
+                scene.setAttribute('mindar-image', `imageTargetSrc: ${IMAGE_TARGET_SRC}; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;`);
+                scene.setAttribute('color-space', 'sRGB');
+                scene.setAttribute('renderer', 'colorManagement: true, physicallyCorrectLights: true, antialias: true, powerPreference: high-performance');
+                scene.setAttribute('vr-mode-ui', 'enabled: false');
+                scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
+                scene.setAttribute('loading-screen', 'enabled: false');
+
+                const camera = document.createElement('a-camera');
+                camera.setAttribute('position', '0 0 0');
+                camera.setAttribute('look-controls', 'enabled: false');
+                camera.setAttribute('cursor', 'fuse: false; rayOrigin: mouse;');
+                camera.setAttribute('raycaster', 'near: 10; far: 10000; objects: .clickable');
+                scene.appendChild(camera);
+
+                const ambientLight = document.createElement('a-light');
+                ambientLight.setAttribute('type', 'ambient');
+                ambientLight.setAttribute('color', '#FFFFFF');
+                ambientLight.setAttribute('intensity', '0.6');
+                scene.appendChild(ambientLight);
+
+                const directionalLight = document.createElement('a-light');
+                directionalLight.setAttribute('type', 'directional');
+                directionalLight.setAttribute('position', '1 1 1');
+                directionalLight.setAttribute('color', '#FFFFFF');
+                directionalLight.setAttribute('intensity', '0.4');
+                scene.appendChild(directionalLight);
+
+                hienVatDataArray.forEach(hienVatData => {
+                    const modelUrl = hienVatData.model3dPcJpg || hienVatData.model3dPcGlb;
+                    const targetIndex = hienVatData.stt - 1;
+                    const audioUrl = hienVatData.audio;
+                    const title = hienVatData.tenHienVat3D;
+                    const description = hienVatData.gioiThieu;
+
+                    const arTarget = document.createElement('a-entity');
+                    arTarget.setAttribute('mindar-image-target', `targetIndex: ${targetIndex}`);
+
+                    const portfolioPlane = document.createElement('a-plane');
+                    portfolioPlane.setAttribute('class', 'clickable');
+                    portfolioPlane.setAttribute('position', '1.1 -0.35 0.01');
+                    portfolioPlane.setAttribute('width', '1');
+                    portfolioPlane.setAttribute('height', '1.2');
+                    portfolioPlane.setAttribute('color', 'transparent');
+                    portfolioPlane.setAttribute('opacity', '0.0');
+                    portfolioPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
+                    portfolioPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
+                    portfolioPlane.setAttribute('animation__float', 'property: position; to: 1.1 -0.32 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+
+                    const modelEntity = document.createElement('a-entity');
+                    modelEntity.setAttribute('id', `model-${targetIndex}`);
+                    modelEntity.setAttribute('class', 'model-entity clickable');
+                    modelEntity.setAttribute('data-model-url', modelUrl);
+                    modelEntity.setAttribute('data-loaded', 'false');
+                    modelEntity.setAttribute('position', '0 0.2 0.02');
+                    modelEntity.setAttribute('scale', '0.00001 0.00001 0.00001');
+                    modelEntity.setAttribute('visible', 'false');
+                    modelEntity.setAttribute('interactive-model', '');
+                    portfolioPlane.appendChild(modelEntity);
+
+                    // Removed the 'View Portfolio' text element entirely
+                    // const portfolioText = document.createElement('a-text');
+                    // portfolioText.setAttribute('value', 'View Portfolio');
+                    // portfolioText.setAttribute('position', '0 -0.45 0.01');
+                    // portfolioText.setAttribute('align', 'center');
+                    // portfolioText.setAttribute('color', '#ffffff');
+                    // portfolioText.setAttribute('scale', '0.5 0.5 0.5');
+                    // portfolioPlane.appendChild(portfolioText);
+
+                    arTarget.appendChild(portfolioPlane);
+
+                    const infoPlane = document.createElement('a-plane');
+                    infoPlane.setAttribute('class', 'clickable');
+                    infoPlane.setAttribute('position', '0 -0.65 0.01');
+                    infoPlane.setAttribute('width', '1');
+                    infoPlane.setAttribute('height', '0.6');
+                    infoPlane.setAttribute('color', '#2980b9');
+                    infoPlane.setAttribute('opacity', '0.95');
+                    infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
+                    infoPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
+                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+
+                    const infoText = document.createElement('a-text');
+                    const maxDescriptionLength = 120;
+                    const truncatedDescription = description.length > maxDescriptionLength ? description.substring(0, maxDescriptionLength) + '...' : description;
+                    infoText.setAttribute('value', `${title}\n\n${truncatedDescription}`);
+                    infoText.setAttribute('position', '0 0 0.01');
+                    infoText.setAttribute('align', 'center');
+                    infoText.setAttribute('color', '#ffffff');
+                    infoText.setAttribute('scale', '0.12 0.12 0.12');
+                    infoText.setAttribute('wrap-count', '20');
+                    infoPlane.appendChild(infoText);
+                    arTarget.appendChild(infoPlane);
+
+                    if (audioUrl) {
+                        const audio = document.createElement('audio');
+                        audio.setAttribute('src', audioUrl);
+                        audio.setAttribute('loop', '');
+                        audio.style.display = 'none';
+                        arTarget.appendChild(audio);
+
+                        const audioControlPlane = document.createElement('a-plane');
+                        audioControlPlane.setAttribute('class', 'clickable');
+                        audioControlPlane.setAttribute('position', '-0.8 0.6 0.05');
+                        audioControlPlane.setAttribute('width', '0.2');
+                        audioControlPlane.setAttribute('height', '0.2');
+                        audioControlPlane.setAttribute('color', '#333333');
+                        audioControlPlane.setAttribute('opacity', '1.0'); // Set opacity to 1.0 for full visibility
+
+                        const audioIconText = document.createElement('a-text');
+                        audioIconText.setAttribute('value', '🔇');
+                        audioIconText.setAttribute('position', '0 0 0.01');
+                        audioIconText.setAttribute('align', 'center');
+                        audioIconText.setAttribute('color', '#ffffff');
+                        audioIconText.setAttribute('scale', '0.3 0.3 0.3');
+                        audioControlPlane.appendChild(audioIconText);
+                        arTarget.appendChild(audioControlPlane);
+
+                        audioControlPlane.addEventListener('click', () => {
+                            if (audio.paused) {
+                                audio.play().catch(e => console.error("Error playing audio:", e));
+                                audioIconText.setAttribute('value', '🔊');
+                            } else {
+                                audio.pause();
+                                audioIconText.setAttribute('value', '🔇');
+                            }
+                        });
+
+                        arTarget.addEventListener('targetFound', () => {
+                            console.log(`Target ${targetIndex} found, playing audio and loading model.`);
+                            audio.play().catch(e => console.error("Error playing audio on targetFound:", e));
+                            audioIconText.setAttribute('value', '🔊');
+
+                            const model = document.getElementById(`model-${targetIndex}`);
+                            if (model) {
+                                if (model.getAttribute('data-loaded') === 'false') {
+                                    model.setAttribute('gltf-model', `url(${model.getAttribute('data-model-url')})`);
+                                    model.setAttribute('data-loaded', 'true');
+                                    console.log(`Model for target ${targetIndex} loaded.`);
+                                }
+                                model.setAttribute('scale', '0.0005 0.0005 0.0005');
+                                model.setAttribute('visible', 'true');
+                                // Further increased duration for smoother rotation
+                                model.setAttribute('animation__rotate', 'property: rotation; to: 0 360 0; loop: true; dur: 30000; easing: linear'); // Increased to 30 seconds
+                            }
+                        });
+
+                        arTarget.addEventListener('targetLost', () => {
+                            console.log(`Target ${targetIndex} lost, pausing audio and hiding model.`);
+                            audio.pause();
+                            audioIconText.setAttribute('value', '🔇');
+
+                            const model = document.getElementById(`model-${targetIndex}`);
+                            if (model) {
+                                model.setAttribute('scale', '0.00001 0.00001 0.00001');
+                                model.setAttribute('visible', 'false');
+                                model.removeAttribute('animation__rotate');
+                            }
+                        });
+                    }
+
+                    scene.appendChild(arTarget);
+                });
+
+                document.body.appendChild(scene);
+            } catch (error) {
+                console.error("Failed to initialize AR scene:", error);
+                alert(`Lỗi khi tải dữ liệu AR: ${error.message || "Lỗi không xác định."}`);
+                loadingMessage.textContent = `Lỗi: ${error.message || "Lỗi không xác định."}`;
+            }
+        }
+
+        window.onload = () => {
+            initializeARScene();
+        };
     </script>
 </body>
 
