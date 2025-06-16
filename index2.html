@@ -3,9 +3,6 @@
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Three.js GLTFLoader and DRACOLoader for advanced model loading -->
-    <script src="https://unpkg.com/three@0.158.0/examples/jsm/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/three@0.158.0/examples/jsm/loaders/DRACOLoader.js"></script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <style>
@@ -80,10 +77,71 @@
     </div>
 
     <script>
+        // Performance optimization component
+        AFRAME.registerComponent('performance-optimizer', {
+            init: function () {
+                // Enable frustum culling
+                this.el.object3D.frustumCulled = true;
+
+                // Optimize material
+                this.el.addEventListener('model-loaded', () => {
+                    this.optimizeModel();
+                });
+            },
+
+            optimizeModel: function () {
+                const model = this.el.object3D;
+
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        // Enable frustum culling for all meshes
+                        child.frustumCulled = true;
+
+                        // Optimize materials
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => this.optimizeMaterial(mat));
+                            } else {
+                                this.optimizeMaterial(child.material);
+                            }
+                        }
+
+                        // Optimize geometry
+                        if (child.geometry) {
+                            child.geometry.computeBoundingBox();
+                            child.geometry.computeBoundingSphere();
+                        }
+                    }
+                });
+            },
+
+            optimizeMaterial: function (material) {
+                // Reduce quality for mobile
+                if (window.DeviceMotionEvent && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                    material.precision = 'mediump';
+                }
+
+                // Enable efficient rendering
+                material.alphaTest = 0.1;
+                material.transparent = false;
+
+                // Disable unnecessary features
+                material.fog = false;
+
+                // Use lower quality shadows on mobile
+                if (material.receiveShadow) {
+                    material.receiveShadow = false;
+                }
+                if (material.castShadow) {
+                    material.castShadow = false;
+                }
+            }
+        });
+
         // LOD (Level of Detail) component
         AFRAME.registerComponent('lod-system', {
             schema: {
-                distances: { type: 'array', default: [5, 15, 30] }, // Distances for high, medium, low quality
+                distances: { type: 'array', default: [5, 15, 30] },
                 qualities: { type: 'array', default: ['high', 'medium', 'low'] }
             },
 
@@ -92,23 +150,21 @@
                 this.lastDistance = 0;
                 this.currentLOD = 'high';
 
-                // Throttle distance checking to improve performance
+                // Throttle distance checking
                 this.checkDistance = this.throttle(this.checkDistance.bind(this), 200);
             },
 
             tick: function () {
-                // Only check distance if the model is visible
                 if (this.el.object3D.visible) {
                     this.checkDistance();
                 }
             },
 
             checkDistance: function () {
-                if (!this.camera || !this.el.object3D) return;
+                if (!this.camera) return;
 
                 const distance = this.el.object3D.position.distanceTo(this.camera.object3D.position);
 
-                // Update LOD only if distance changes significantly
                 if (Math.abs(distance - this.lastDistance) > 2) {
                     this.lastDistance = distance;
                     this.updateLOD(distance);
@@ -138,7 +194,6 @@
                         switch (level) {
                             case 'low':
                                 child.material.precision = 'lowp';
-                                // Optionally hide less important parts of the model
                                 child.visible = child.userData.isImportant !== false;
                                 break;
                             case 'medium':
@@ -150,8 +205,6 @@
                                 child.visible = true;
                                 break;
                         }
-                        // Ensure material updates are applied
-                        child.material.needsUpdate = true;
                     }
                 });
             },
@@ -170,23 +223,25 @@
             }
         });
 
-        // Optimized interactive model component (Pan and Zoom only, no rotation)
+        // Optimized interactive model component
         AFRAME.registerComponent('interactive-model', {
             schema: {
                 minScale: { type: 'number', default: 0.0001 },
                 maxScale: { type: 'number', default: 0.0005 },
                 panSpeed: { type: 'number', default: 0.0008 },
+                rotateSpeed: { type: 'number', default: 0.4 },
                 zoomSpeed: { type: 'number', default: 0.00003 }
             },
 
             init: function () {
                 this.isDragging = false;
+                this.isPanning = false;
                 this.lastX = 0;
                 this.lastY = 0;
-                this.initialPinchDistance = null; // For two-finger zoom
 
+                // More aggressive throttling for mobile
                 const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                const throttleDelay = isMobile ? 32 : 16; // More aggressive throttling for mobile
+                const throttleDelay = isMobile ? 32 : 16; // 30fps for mobile, 60fps for desktop
 
                 this.throttledMouseMove = this.throttle(this.onMouseMove.bind(this), throttleDelay);
 
@@ -194,6 +249,7 @@
                 this.onMouseUp = this.onMouseUp.bind(this);
                 this.onMouseWheel = this.onMouseWheel.bind(this);
 
+                // Touch events for mobile
                 this.onTouchStart = this.onTouchStart.bind(this);
                 this.onTouchEnd = this.onTouchEnd.bind(this);
                 this.onTouchMove = this.throttle(this.onTouchMove.bind(this), throttleDelay);
@@ -203,6 +259,7 @@
                 this.el.addEventListener('mousemove', this.throttledMouseMove);
                 this.el.addEventListener('wheel', this.onMouseWheel);
 
+                // Touch events
                 this.el.addEventListener('touchstart', this.onTouchStart);
                 this.el.addEventListener('touchend', this.onTouchEnd);
                 this.el.addEventListener('touchmove', this.onTouchMove);
@@ -226,70 +283,38 @@
                     this.isDragging = true;
                     this.lastX = evt.touches[0].clientX;
                     this.lastY = evt.touches[0].clientY;
-                } else if (evt.touches.length === 2) {
-                    this.isDragging = true;
-                    this.lastX = (evt.touches[0].clientX + evt.touches[1].clientX) / 2;
-                    this.lastY = (evt.touches[0].clientY + evt.touches[1].clientY) / 2;
-                    this.initialPinchDistance = Math.hypot(
-                        evt.touches[0].clientX - evt.touches[1].clientX,
-                        evt.touches[0].clientY - evt.touches[1].clientY
-                    );
                 }
             },
 
             onTouchEnd: function () {
                 this.isDragging = false;
-                this.initialPinchDistance = null;
+                this.isPanning = false;
             },
 
             onTouchMove: function (evt) {
-                if (!this.isDragging) return;
+                if (!this.isDragging || evt.touches.length !== 1) return;
 
-                evt.preventDefault(); // Prevent scrolling
+                evt.preventDefault();
+                const touch = evt.touches[0];
+                const deltaX = touch.clientX - this.lastX;
+                const deltaY = touch.clientY - this.lastY;
 
-                if (evt.touches.length === 1) {
-                    const touch = evt.touches[0];
-                    const deltaX = touch.clientX - this.lastX;
-                    const deltaY = touch.clientY - this.lastY;
-                    this.applyPan(deltaX, deltaY);
-                    this.lastX = touch.clientX;
-                    this.lastY = touch.clientY;
-                } else if (evt.touches.length === 2) {
-                    const touch1 = evt.touches[0];
-                    const touch2 = evt.touches[1];
+                this.applyTransformation(deltaX, deltaY, false);
 
-                    // Pan with two fingers
-                    const currentX = (touch1.clientX + touch2.clientX) / 2;
-                    const currentY = (touch1.clientY + touch2.clientY) / 2;
-                    const deltaX = currentX - this.lastX;
-                    const deltaY = currentY - this.lastY;
-                    this.applyPan(deltaX, deltaY);
-                    this.lastX = currentX;
-                    this.lastY = currentY;
-
-                    // Zoom with pinch
-                    const currentPinchDistance = Math.hypot(
-                        touch1.clientX - touch2.clientX,
-                        touch1.clientY - touch2.clientY
-                    );
-                    if (this.initialPinchDistance) {
-                        const scaleFactor = currentPinchDistance / this.initialPinchDistance;
-                        let newScale = this.el.object3D.scale.x * scaleFactor;
-                        newScale = Math.max(this.data.minScale, Math.min(this.data.maxScale, newScale));
-                        this.el.object3D.scale.set(newScale, newScale, newScale);
-                        this.initialPinchDistance = currentPinchDistance; // Update for next move
-                    }
-                }
+                this.lastX = touch.clientX;
+                this.lastY = touch.clientY;
             },
 
             onMouseDown: function (evt) {
                 this.isDragging = true;
+                this.isPanning = evt.shiftKey;
                 this.lastX = evt.clientX;
                 this.lastY = evt.clientY;
             },
 
             onMouseUp: function () {
                 this.isDragging = false;
+                this.isPanning = false;
             },
 
             onMouseMove: function (evt) {
@@ -298,30 +323,37 @@
                 const deltaX = evt.clientX - this.lastX;
                 const deltaY = evt.clientY - this.lastY;
 
-                // Always pan on mouse drag (no rotation)
-                this.applyPan(deltaX, deltaY);
+                this.applyTransformation(deltaX, deltaY, this.isPanning);
 
                 this.lastX = evt.clientX;
                 this.lastY = evt.clientY;
             },
 
-            applyPan: function (deltaX, deltaY) {
-                const currentPos = this.el.object3D.position;
-                currentPos.x += deltaX * this.data.panSpeed;
-                currentPos.y -= deltaY * this.data.panSpeed;
+            applyTransformation: function (deltaX, deltaY, isPanning) {
+                if (isPanning) {
+                    const currentPos = this.el.object3D.position;
+                    currentPos.x += deltaX * this.data.panSpeed;
+                    currentPos.y -= deltaY * this.data.panSpeed;
 
-                // Clamping logic for panning (adjusted for right-side model position)
-                const parentWidth = 0.6; // Adjusted for right side
-                const parentHeight = 0.9;
-                const modelScale = this.el.object3D.scale.x;
-                const modelHalfSize = modelScale * 15;
+                    // THAY ĐỔI: Điều chỉnh giới hạn pan để phù hợp với vị trí mới (bên phải)
+                    const parentWidth = 0.6; // Giảm từ 0.7 xuống 0.6
+                    const parentHeight = 0.9;
+                    const modelScale = this.el.object3D.scale.x;
+                    const modelHalfSize = modelScale * 15;
 
-                const clampX = Math.max(0, (parentWidth / 2) - modelHalfSize);
-                const clampY = Math.max(0, (parentHeight / 2) - modelHalfSize);
+                    // Điều chỉnh offset để model có thể di chuyển trong vùng bên phải
+                    const clampX = Math.max(0, (parentWidth / 2) - modelHalfSize);
+                    const clampY = Math.max(0, (parentHeight / 2) - modelHalfSize);
 
-                const offsetX = 0.2; // Offset to keep model on the right side
-                currentPos.x = Math.max(offsetX - clampX, Math.min(offsetX + clampX, currentPos.x));
-                currentPos.y = Math.max(-clampY, Math.min(clampY, currentPos.y));
+                    // THAY ĐỔI: Thêm offset để giới hạn pan trong vùng bên phải
+                    const offsetX = 0.2; // Offset để giữ model ở bên phải
+                    currentPos.x = Math.max(offsetX - clampX, Math.min(offsetX + clampX, currentPos.x));
+                    currentPos.y = Math.max(-clampY, Math.min(clampY, currentPos.y));
+                } else {
+                    const rotation = this.el.object3D.rotation;
+                    rotation.y += THREE.MathUtils.degToRad(deltaX * this.data.rotateSpeed);
+                    rotation.x += THREE.MathUtils.degToRad(deltaY * this.data.rotateSpeed);
+                }
             },
 
             onMouseWheel: function (evt) {
@@ -343,24 +375,19 @@
             }
         });
 
-        // Model loading manager with progress and optimization
+        // Model loading manager with progress
         class ModelLoadingManager {
             constructor() {
                 this.loadingQueue = [];
                 this.maxConcurrentLoads = 2; // Limit concurrent loads
                 this.activeLoads = 0;
-                this.cache = new Map(); // Using Map for LRU cache
-                this.cacheSizeLimit = 2; // Limit cache to 2 most recent models
+                this.cache = new Map();
             }
 
             async loadModel(url, element, progressCallback) {
                 // Check cache first
                 if (this.cache.has(url)) {
                     const cachedModel = this.cache.get(url);
-                    // Move to front of LRU (most recently used)
-                    this.cache.delete(url);
-                    this.cache.set(url, cachedModel);
-
                     element.setObject3D('mesh', cachedModel.clone());
                     if (progressCallback) progressCallback(100);
                     return;
@@ -409,28 +436,14 @@
                     loader.setDRACOLoader(dracoLoader);
                 }
 
-                // Removed loader.setWorkerLimit(4); to fix TypeError
-
                 loader.load(
                     url,
                     (gltf) => {
                         // Optimize the loaded model
                         this.optimizeLoadedModel(gltf.scene);
 
-                        // Manage LRU cache
-                        if (this.cache.size >= this.cacheSizeLimit) {
-                            // Delete the least recently used item (first item in Map)
-                            const oldestUrl = this.cache.keys().next().value;
-                            const oldestModel = this.cache.get(oldestUrl);
-                            this.cache.delete(oldestUrl);
-                            // Optionally dispose of resources if they are no longer referenced anywhere else
-                            // This is complex for GLTF scenes as geometries/materials might be shared.
-                            // For now, relying on garbage collection after removing from cache.
-                            console.log(`Cache: Removed oldest model: ${oldestUrl}`);
-                        }
-                        this.cache.set(url, gltf.scene); // Add new model to cache (becomes most recent)
-                        console.log(`Cache: Added model: ${url}. Current cache size: ${this.cache.size}`);
-
+                        // Cache the model
+                        this.cache.set(url, gltf.scene);
 
                         // Set the model
                         element.setObject3D('mesh', gltf.scene);
@@ -452,8 +465,6 @@
             }
 
             optimizeLoadedModel(scene) {
-                const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
                 scene.traverse((child) => {
                     if (child.isMesh) {
                         // Enable frustum culling
@@ -465,7 +476,7 @@
                             child.geometry.computeBoundingSphere();
 
                             // Remove unnecessary vertex attributes for mobile
-                            if (isMobile) {
+                            if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
                                 if (child.geometry.attributes.uv2) {
                                     delete child.geometry.attributes.uv2;
                                 }
@@ -475,17 +486,17 @@
                         // Optimize materials
                         if (child.material) {
                             if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => this.optimizeMaterialForDevice(mat, isMobile));
+                                child.material.forEach(mat => this.optimizeMaterialForMobile(mat));
                             } else {
-                                this.optimizeMaterialForDevice(child.material, isMobile);
+                                this.optimizeMaterialForMobile(child.material);
                             }
                         }
                     }
                 });
             }
 
-            optimizeMaterialForDevice(material, isMobile) {
-                if (isMobile) {
+            optimizeMaterialForMobile(material) {
+                if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
                     material.precision = 'mediump';
 
                     // Reduce texture quality on mobile
@@ -500,9 +511,6 @@
                     material.receiveShadow = false;
                     material.castShadow = false;
                 }
-                // For desktop, keep higher quality settings if desired, or apply general optimizations
-                material.alphaTest = 0.1; // Helps with transparent textures
-                material.transparent = false; // Set to true only if actual transparency is needed
             }
         }
 
@@ -512,8 +520,7 @@
         const TOKEN_KEY = 'access_token';
         const EXPIRES_KEY = 'expires_in';
         const DATE_SAVE_KEY = 'date_save';
-        // Default IMAGE_TARGET_SRC
-        const DEFAULT_IMAGE_TARGET_SRC = 'https://u2502-dev.dttt.vn/static/assets//app/wwwroot/uploads/2025/6/13/1b387430-7f76-44a4-bdb8-5feb2f0e2d9f_dataAPPAr.mind';
+        const IMAGE_TARGET_SRC = 'https://u2502-dev.dttt.vn/static/assets//app/wwwroot/uploads/2025/6/13/1b387430-7f76-44a4-bdb8-5feb2f0e2d9f_dataAPPAr.mind';
 
         async function fetchNewToken() {
             const payload = new URLSearchParams({
@@ -549,7 +556,7 @@
             const dateSaved = parseInt(localStorage.getItem(DATE_SAVE_KEY) || '0');
             if (!token || !expiresIn || !dateSaved) return true;
             const now = Date.now();
-            const buffer = 5 * 24 * 60 * 60 * 1000; // 5 days buffer
+            const buffer = 5 * 24 * 60 * 60 * 1000;
             return now - dateSaved >= (expiresIn * 1000 - buffer);
         }
 
@@ -567,39 +574,55 @@
             }
         }
 
-        // Function to fetch image target source based on type
-        async function fetchImageTargetSource(token, type) {
-            const url = 'https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/FileAR/GetFileARList';
+        async function fetchHienVatSingle(id, token) {
+            const url = "https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/HienVat3D/GetData/FilterByHienVat";
+            const payload = {
+                filters: [
+                    {
+                        valueIsField: false,
+                        filters: [],
+                        stringCompareOption: 0,
+                        field: "id",
+                        operator: "eq",
+                        value: `"${id}"`,
+                    },
+                ],
+                sorts: [
+                    {
+                        field: "thuTu",
+                        dir: 1,
+                    },
+                ],
+                includes: [],
+                pageInfo: {
+                    page: 1,
+                    pageSize: 15,
+                },
+            };
+
             try {
                 const res = await fetch(url, {
-                    method: 'GET', // Changed to GET
+                    method: "POST",
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
                     },
-                    // Removed body and Content-Type header for GET request
+                    body: JSON.stringify(payload),
                 });
 
                 if (!res.ok) {
                     const errorText = await res.text();
-                    throw new Error(`Failed to fetch FileARList: ${res.status} ${res.statusText} - ${errorText}`);
+                    throw new Error(`Failed to fetch HienVat data: ${res.status} ${res.statusText} - ${errorText}`);
                 }
 
                 const result = await res.json();
                 if (result.data && result.data.length > 0) {
-                    const matchedFile = result.data.find(item => item.sharedDataUnixCode === type);
-                    if (matchedFile) {
-                        console.log(`Found image target URL for type "${type}": ${matchedFile.fileUrl}`);
-                        return matchedFile.fileUrl;
-                    } else {
-                        console.warn(`No image target found for type "${type}". Using default.`);
-                        return DEFAULT_IMAGE_TARGET_SRC; // Fallback to default
-                    }
+                    return result.data[0];
                 }
-                console.warn('FileARList data is empty. Using default image target.');
-                return DEFAULT_IMAGE_TARGET_SRC; // Fallback to default
+                return null;
             } catch (error) {
-                console.error('Error fetching image target source:', error);
-                return DEFAULT_IMAGE_TARGET_SRC; // Fallback on error
+                console.error("Error fetching HienVat data:", error);
+                throw error;
             }
         }
 
@@ -634,7 +657,7 @@
             const progressContainer = document.getElementById('progress-container');
             const progressFill = document.getElementById('progress-fill');
 
-            if (percent > 0 && percent < 100) {
+            if (percent > 0) {
                 progressContainer.style.display = 'block';
                 progressFill.style.width = `${percent}%`;
             } else {
@@ -647,31 +670,38 @@
             loadingMessage.textContent = "Đang tải dữ liệu AR...";
 
             const urlParams = new URLSearchParams(window.location.search);
-            const type = urlParams.get('type'); // Only get the 'type' parameter
+            const id = urlParams.get('id');
+            const mutil = urlParams.get('mutil') === 'true';
 
-            let currentImageTargetSrc = DEFAULT_IMAGE_TARGET_SRC;
             let hienVatDataArray = [];
 
             try {
                 const token = await getValidToken();
 
-                // Dynamically set IMAGE_TARGET_SRC based on 'type' parameter
-                if (type) {
-                    currentImageTargetSrc = await fetchImageTargetSource(token, type);
+                if (mutil) {
+                    console.log("Fetching multiple HienVat items...");
+                    const fetchedList = await fetchHienVatList(token);
+                    hienVatDataArray = fetchedList.filter(data => data.model3dPcJpg || data.model3dPcGlb);
+
+                    if (hienVatDataArray.length === 0) {
+                        alert("Không tìm thấy dữ liệu AR hợp lệ nào trong danh sách (có thể do thiếu mô hình 3D).");
+                        loadingMessage.textContent = "Không tìm thấy dữ liệu AR.";
+                        return;
+                    }
                 } else {
-                    loadingMessage.textContent = "Lỗi: Không có tham số 'type' được cung cấp trong URL. Vui lòng sử dụng URL như: /index.html?type=MIND-001";
-                    return;
-                }
-
-                // Always fetch all HienVat3D models when 'type' is provided
-                console.log("Fetching all HienVat items...");
-                const fetchedList = await fetchHienVatList(token);
-                hienVatDataArray = fetchedList.filter(data => data.model3dPcJpg || data.model3dPcGlb);
-
-                if (hienVatDataArray.length === 0) {
-                    alert("Không tìm thấy dữ liệu mô hình 3D hợp lệ nào (có thể do thiếu mô hình 3D).");
-                    loadingMessage.textContent = "Không tìm thấy dữ liệu mô hình 3D.";
-                    return;
+                    if (!id) {
+                        loadingMessage.textContent = "Lỗi: Không có ID được cung cấp trong URL. Vui lòng sử dụng URL như: /index.html?id=1f0fdcaf-c992-4817-b095-1fb2d2b5cbd0";
+                        return;
+                    }
+                    console.log(`Fetching single HienVat item for ID: ${id}`);
+                    const singleData = await fetchHienVatSingle(id, token);
+                    if (singleData && (singleData.model3dPcJpg || singleData.model3dPcGlb)) {
+                        hienVatDataArray.push(singleData);
+                    } else {
+                        alert("Không tìm thấy dữ liệu cho ID này hoặc mô hình 3D bị thiếu. Vui lòng kiểm tra lại ID.");
+                        loadingMessage.textContent = "Không tìm thấy dữ liệu AR.";
+                        return;
+                    }
                 }
 
                 loadingMessage.textContent = "Đang khởi tạo cảnh AR...";
@@ -680,8 +710,7 @@
                 const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
                 const scene = document.createElement('a-scene');
-                // Set mindar-image attribute with the determined source
-                scene.setAttribute('mindar-image', `imageTargetSrc: ${currentImageTargetSrc}; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;`);
+                scene.setAttribute('mindar-image', `imageTargetSrc: ${IMAGE_TARGET_SRC}; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;`);
                 scene.setAttribute('color-space', 'sRGB');
 
                 // Optimize renderer settings for mobile
@@ -718,37 +747,46 @@
                 }
 
                 hienVatDataArray.forEach(hienVatData => {
-                    // Prioritize model3dPcJpg first, then model3dPcGlb as per original logic
                     const modelUrl = hienVatData.model3dPcJpg || hienVatData.model3dPcGlb;
-                    const targetIndex = hienVatData.stt - 1; // Assuming stt maps to targetIndex
+                    const targetIndex = hienVatData.stt - 1;
                     const title = hienVatData.tenHienVat3D;
                     const description = hienVatData.gioiThieu;
 
                     const arTarget = document.createElement('a-entity');
                     arTarget.setAttribute('mindar-image-target', `targetIndex: ${targetIndex}`);
 
+                    // 2. Thay đổi vị trí portfolioPlane để phù hợp với layout mới
                     const portfolioPlane = document.createElement('a-plane');
                     portfolioPlane.setAttribute('class', 'clickable');
-                    portfolioPlane.setAttribute('position', '0.8 0.2 0.01');
-                    portfolioPlane.setAttribute('width', '0.8');
-                    portfolioPlane.setAttribute('height', '1');
-                    portfolioPlane.setAttribute('color', '#FFFFFF'); // Changed from 'transparent' to a valid color
+                    // THAY ĐỔI: Điều chỉnh vị trí portfolio plane
+                    portfolioPlane.setAttribute('position', '0.8 0.2 0.01'); // Cập nhật theo vị trí model mới
+                    portfolioPlane.setAttribute('width', '0.8'); // Giảm kích thước từ '1' xuống '0.8'
+                    portfolioPlane.setAttribute('height', '1'); // Giảm kích thước từ '1.2' xuống '1'
+                    portfolioPlane.setAttribute('color', 'transparent');
                     portfolioPlane.setAttribute('opacity', '0.0');
-                    portfolioPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
-                    portfolioPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
-                    portfolioPlane.setAttribute('animation__float', 'property: position; to: 0.8 0.23 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+
+                    // 3. Thay đổi animation cho portfolioPlane
+                    if (!isMobile) {
+                        portfolioPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
+                        portfolioPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
+                        // THAY ĐỔI: Điều chỉnh animation float để phù hợp với vị trí mới
+                        portfolioPlane.setAttribute('animation__float', 'property: position; to: 0.8 0.23 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+                    }
 
 
+                    // 1. Thay đổi vị trí model 3D - di chuyển sang bên phải xa hơn
                     const modelEntity = document.createElement('a-entity');
                     modelEntity.setAttribute('id', `model-${targetIndex}`);
                     modelEntity.setAttribute('class', 'model-entity clickable');
                     modelEntity.setAttribute('data-model-url', modelUrl);
                     modelEntity.setAttribute('data-loaded', 'false');
-                    modelEntity.setAttribute('position', '0.8 0.2 0.02');
+                    // THAY ĐỔI: Di chuyển model sang bên phải xa hơn
+                    modelEntity.setAttribute('position', '0.8 0.2 0.02'); // Di chuyển xa hơn sang phải
                     modelEntity.setAttribute('scale', '0.00001 0.00001 0.00001');
                     modelEntity.setAttribute('visible', 'false');
                     modelEntity.setAttribute('interactive-model', '');
-                    modelEntity.setAttribute('lod-system', ''); // Apply LOD system
+                    modelEntity.setAttribute('performance-optimizer', '');
+                    modelEntity.setAttribute('lod-system', '');
 
                     // Load model with progress tracking
                     arTarget.addEventListener('targetFound', async () => {
@@ -778,7 +816,7 @@
                                 loadingMessage.style.display = 'none';
                                 updateProgress(0);
 
-                                console.log(`Model ${title} loaded successfully from URL: ${modelUrl}`);
+                                console.log(`Model ${title} loaded successfully`);
                             } catch (error) {
                                 console.error(`Failed to load model ${title}:`, error);
                                 loadingMessage.textContent = `Lỗi tải mô hình ${title}`;
@@ -794,48 +832,70 @@
                         modelEntity.setAttribute('visible', 'false');
                     });
 
-                    // Info panel (kept as version 3 layout)
-                    const infoPlane = document.createElement('a-plane');
-                    infoPlane.setAttribute('class', 'clickable');
-                    infoPlane.setAttribute('position', '0 -0.65 0.01');
-                    infoPlane.setAttribute('width', '1');
-                    infoPlane.setAttribute('height', '0.6');
-                    infoPlane.setAttribute('color', '#2980b9');
-                    infoPlane.setAttribute('opacity', '0.95');
-                    infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
-                    infoPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
-                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+                    // 4. Thay đổi vị trí Info panel - UI đẹp hơn với gradient và bo góc
+                    const infoPanel = document.createElement('a-plane');
+                    // THAY ĐỔI: Di chuyển info panel xuống dưới và sang trái, làm đẹp UI
+                    infoPanel.setAttribute('position', '-0.4 -0.6 0.01');
+                    infoPanel.setAttribute('width', '1.4'); // Tăng chiều rộng
+                    infoPanel.setAttribute('height', '0.6'); // Tăng chiều cao
+                    infoPanel.setAttribute('color', '#2c3e50'); // Màu xanh đậm đẹp hơn
+                    infoPanel.setAttribute('opacity', '0.92'); // Tăng độ trong suốt
+                    infoPanel.setAttribute('material', 'shader: flat; side: double'); // Thêm side: double
+                    infoPanel.setAttribute('geometry', 'primitive: plane; width: 1.4; height: 0.6'); // Đ
 
-                    // Info text (kept as version 3 layout)
-                    const infoText = document.createElement('a-text');
-                    const maxDescriptionLength = 120;
-                    const truncatedDescription = description.length > maxDescriptionLength ? description.substring(0, maxDescriptionLength) + '...' : description;
-                    infoText.setAttribute('value', `${title}\n\n${truncatedDescription}`);
-                    infoText.setAttribute('position', '0 0 0.01');
-                    infoText.setAttribute('align', 'center');
-                    infoText.setAttribute('color', '#ffffff');
-                    infoText.setAttribute('scale', '0.12 0.12 0.12');
-                    infoText.setAttribute('wrap-count', '20');
-                    infoPlane.appendChild(infoText);
+                    // 5. Thay đổi vị trí Title text - UI đẹp hơn
+                    const titleText = document.createElement('a-text');
+                    titleText.setAttribute('value', title);
+                    // THAY ĐỔI: Điều chỉnh vị trí và style title text để đẹp hơn
+                    titleText.setAttribute('position', '-0.4 -0.42 0.02');
+                    titleText.setAttribute('align', 'center');
+                    titleText.setAttribute('width', '4.5'); // Tăng kích thước font
+                    titleText.setAttribute('color', '#ffffff');
+                    titleText.setAttribute('font', 'roboto');
+                    titleText.setAttribute('wrap-count', '28');
+                    titleText.setAttribute('letter-spacing', '1'); // Thêm letter spacing
 
-                    // Re-added instructions text (from version 4 layout, but updated for pan/zoom only)
+
+
+                    // Fix 1: Update Description text section - replace the existing descText creation code
+                    const descText = document.createElement('a-text');
+                    // THAY ĐỔI: Giới hạn mô tả ngắn hơn cho mobile và điều chỉnh font size để vừa vặn
+                    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    const maxDescLength = isMobileDevice ? 50 : 70; // Mobile: 50, Desktop: 70 ký tự
+                    const shortDesc = description && description.length > maxDescLength
+                        ? description.substring(0, maxDescLength) + '...'
+                        : (description || 'Mô tả hiện vật 3D');
+                    descText.setAttribute('value', shortDesc);
+                    // THAY ĐỔI: Điều chỉnh vị trí và giảm kích thước font để text không tràn, tối ưu cho mobile
+                    descText.setAttribute('position', '-0.4 -0.62 0.02');
+                    descText.setAttribute('align', 'center');
+                    descText.setAttribute('width', isMobileDevice ? '1.8' : '2.2'); // Mobile: 1.8, Desktop: 2.2
+                    descText.setAttribute('color', '#ecf0f1');
+                    descText.setAttribute('font', 'roboto');
+                    descText.setAttribute('wrap-count', isMobileDevice ? '20' : '25'); // Mobile: 20, Desktop: 25
+
+                    // Fix 2: Update Instructions text section - replace the existing instructionsText creation code  
                     const instructionsText = document.createElement('a-text');
-                    const instructions = isMobile
-                        ? '👆 Kéo di chuyển • 🤏 Zoom'
-                        : '🖱️ Kéo di chuyển • 🔄 Cuộn chuột Zoom';
+                    const instructions = isMobileDevice
+                        ? '👆 Xoay • 🤏 Zoom'  // Rút ngắn tối đa cho mobile
+                        : '🖱️ Kéo xoay • ⇧+kéo di chuyển • 🔄 Zoom'; // Desktop giữ nguyên
 
                     instructionsText.setAttribute('value', instructions);
-                    instructionsText.setAttribute('position', '0 -0.85 0.01'); // Adjusted position to be below info panel
+                    // THAY ĐỔI: Điều chỉnh để instructions text vừa vặn, tối ưu cho mobile
+                    instructionsText.setAttribute('position', '-0.4 -0.78 0.02');
                     instructionsText.setAttribute('align', 'center');
+                    instructionsText.setAttribute('width', isMobileDevice ? '1.6' : '2.0'); // Mobile: 1.6, Desktop: 2.0  
                     instructionsText.setAttribute('color', '#3498db');
-                    instructionsText.setAttribute('scale', '0.1 0.1 0.1'); // Smaller scale for instructions
-                    arTarget.appendChild(instructionsText); // Append directly to arTarget
+                    instructionsText.setAttribute('font', 'roboto');
+                    instructionsText.setAttribute('wrap-count', isMobileDevice ? '18' : '22'); // Mobi
 
 
                     // Add click interaction for portfolio plane
                     portfolioPlane.addEventListener('click', () => {
                         console.log(`Clicked on ${title}`);
+                        // Add any additional click interactions here
                         if (window.DeviceMotionEvent) {
+                            // Haptic feedback on mobile
                             if (navigator.vibrate) {
                                 navigator.vibrate(50);
                             }
@@ -845,7 +905,10 @@
                     // Assemble the AR target
                     arTarget.appendChild(portfolioPlane);
                     arTarget.appendChild(modelEntity);
-                    arTarget.appendChild(infoPlane); // Append infoPlane (which contains infoText)
+                    arTarget.appendChild(infoPanel);
+                    arTarget.appendChild(titleText);
+                    arTarget.appendChild(descText);
+                    arTarget.appendChild(instructionsText);
 
                     scene.appendChild(arTarget);
                 });
