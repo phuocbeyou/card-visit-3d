@@ -371,7 +371,7 @@
                     const cachedModel = this.cache.get(url);
                     // Move to front of LRU (most recently used)
                     this.cache.delete(url);
-                    this.cache.set(url, cachedModel);
+                    this.cache.set(url, cachedModel, cachedModel);
 
                     element.setObject3D('mesh', cachedModel.clone());
                     if (progressCallback) progressCallback(100);
@@ -435,10 +435,9 @@
                             const oldestUrl = this.cache.keys().next().value;
                             const oldestModel = this.cache.get(oldestUrl);
                             this.cache.delete(oldestUrl);
-                            // Optionally dispose of resources if they are no longer referenced anywhere else
-                            // This is complex for GLTF scenes as geometries/materials might be shared.
-                            // For now, relying on garbage collection after removing from cache.
-                            console.log(`Cache: Removed oldest model: ${oldestUrl}`);
+                            // Explicitly dispose of the model's resources
+                            this.disposeModel(oldestModel);
+                            console.log(`Cache: Removed and disposed oldest model: ${oldestUrl}`);
                         }
                         this.cache.set(url, gltf.scene); // Add new model to cache (becomes most recent)
                         console.log(`Cache: Added model: ${url}. Current cache size: ${this.cache.size}`);
@@ -515,6 +514,23 @@
                 // For desktop, keep higher quality settings if desired, or apply general optimizations
                 material.alphaTest = 0.1; // Helps with transparent textures
                 material.transparent = false; // Set to true only if actual transparency is needed
+            }
+
+            disposeModel(scene) {
+                scene.traverse((child) => {
+                    if (child.isMesh) {
+                        if (child.geometry) {
+                            child.geometry.dispose();
+                        }
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => mat.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    }
+                });
             }
         }
 
@@ -909,19 +925,19 @@
                 const retryButton = document.createElement('button');
                 retryButton.textContent = 'Thử lại';
                 retryButton.style.cssText = `
-                    position: absolute;
-                    top: 60%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    padding: 12px 24px;
-                    background: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-size: 16px;
-                    cursor: pointer;
-                    font-family: sans-serif;
-                `;
+                position: absolute;
+                top: 60%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                padding: 12px 24px;
+                background: #3498db;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                cursor: pointer;
+                font-family: sans-serif;
+            `;
                 retryButton.addEventListener('click', () => {
                     window.location.reload();
                 });
