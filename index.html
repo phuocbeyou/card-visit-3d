@@ -28,6 +28,16 @@
             height: 100%;
         }
 
+        #loading-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+            /* Ensure it's above the scene */
+        }
+
         #loading-message::after {
             content: '';
             animation: ellipsis 1.2s infinite;
@@ -53,7 +63,8 @@
 
         .progress-bar {
             position: absolute;
-            top: 50%;
+            top: calc(50% + 30px);
+            /* Position below loading message */
             left: 50%;
             transform: translate(-50%, -50%);
             width: 200px;
@@ -61,7 +72,8 @@
             background: rgba(255, 255, 255, 0.3);
             border-radius: 2px;
             overflow: hidden;
-            margin-top: 30px;
+            z-index: 10;
+            /* Ensure it's above the scene */
         }
 
         .progress-fill {
@@ -572,11 +584,10 @@
             const url = 'https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/FileAR/GetFileARList';
             try {
                 const res = await fetch(url, {
-                    method: 'GET', // Changed to GET
+                    method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
                     },
-                    // Removed body and Content-Type header for GET request
                 });
 
                 if (!res.ok) {
@@ -602,6 +613,9 @@
                 return DEFAULT_IMAGE_TARGET_SRC; // Fallback on error
             }
         }
+
+        // This function is no longer used if we only rely on 'type' and fetch all models
+        // async function fetchHienVatSingle(id, token) { /* ... */ }
 
         async function fetchHienVatList(token) {
             const url = "https://u2502-dev.dttt.vn/gwdevv5/csdldisan/v5/HienVat3D/GetHienVat3DList";
@@ -633,18 +647,23 @@
         function updateProgress(percent) {
             const progressContainer = document.getElementById('progress-container');
             const progressFill = document.getElementById('progress-fill');
+            const loadingMessage = document.getElementById('loading-message');
 
             if (percent > 0 && percent < 100) {
                 progressContainer.style.display = 'block';
                 progressFill.style.width = `${percent}%`;
+                loadingMessage.textContent = `Đang tải mô hình... ${Math.round(percent)}%`;
+                loadingMessage.style.display = 'block'; // Ensure message is visible
             } else {
                 progressContainer.style.display = 'none';
+                loadingMessage.style.display = 'none'; // Hide message when done or not loading
             }
         }
 
         async function initializeARScene() {
             const loadingMessage = document.getElementById('loading-message');
             loadingMessage.textContent = "Đang tải dữ liệu AR...";
+            loadingMessage.style.display = 'block'; // Ensure initial message is visible
 
             const urlParams = new URLSearchParams(window.location.search);
             const type = urlParams.get('type'); // Only get the 'type' parameter
@@ -756,7 +775,9 @@
 
                         if (modelEntity.getAttribute('data-loaded') === 'false') {
                             try {
+                                // Show loading message and progress bar for this specific model
                                 loadingMessage.textContent = `Đang tải mô hình ${title}...`;
+                                loadingMessage.style.display = 'block';
                                 updateProgress(0);
 
                                 await modelLoadingManager.loadModel(
@@ -764,7 +785,6 @@
                                     modelEntity,
                                     (progress) => {
                                         updateProgress(progress);
-                                        loadingMessage.textContent = `Đang tải mô hình ${title}... ${Math.round(progress)}%`;
                                     }
                                 );
 
@@ -775,17 +795,21 @@
                                 modelEntity.setAttribute('animation__scale',
                                     'property: scale; to: 0.0002 0.0002 0.0002; dur: 1000; easing: easeOutCubic');
 
+                                // Hide loading indicators after model is loaded
                                 loadingMessage.style.display = 'none';
-                                updateProgress(0);
+                                updateProgress(100); // Set to 100 to hide progress bar
 
                                 console.log(`Model ${title} loaded successfully from URL: ${modelUrl}`);
                             } catch (error) {
                                 console.error(`Failed to load model ${title}:`, error);
                                 loadingMessage.textContent = `Lỗi tải mô hình ${title}`;
+                                loadingMessage.style.display = 'block';
+                                updateProgress(100); // Hide progress bar on error
                             }
                         } else {
                             modelEntity.setAttribute('visible', 'true');
                             loadingMessage.style.display = 'none';
+                            updateProgress(100); // Hide progress bar if already loaded
                         }
                     });
 
@@ -854,13 +878,15 @@
                 scene.addEventListener('loaded', () => {
                     console.log('A-Frame scene loaded');
                     loadingMessage.style.display = 'none';
-                    updateProgress(0);
+                    updateProgress(100); // Hide progress bar when scene is fully loaded
                 });
 
                 // Error handling
                 scene.addEventListener('mindar-error', (event) => {
                     console.error('MindAR Error:', event.detail);
                     loadingMessage.textContent = 'Lỗi khởi tạo AR. Vui lòng thử lại.';
+                    loadingMessage.style.display = 'block';
+                    updateProgress(100); // Hide progress bar on error
                 });
 
                 // Replace body content with scene
@@ -877,6 +903,7 @@
             } catch (error) {
                 console.error('Failed to initialize AR scene:', error);
                 loadingMessage.textContent = `Lỗi: ${error.message}`;
+                loadingMessage.style.display = 'block';
 
                 // Show retry button
                 const retryButton = document.createElement('button');
@@ -899,6 +926,7 @@
                     window.location.reload();
                 });
                 document.body.appendChild(retryButton);
+                updateProgress(100); // Hide progress bar on overall error
             }
         }
 
