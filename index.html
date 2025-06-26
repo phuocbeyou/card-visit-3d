@@ -839,7 +839,7 @@
                     infoPlane.setAttribute('class', 'clickable');
                     infoPlane.setAttribute('position', '0 -0.65 0.01');
                     infoPlane.setAttribute('width', '1');
-                    infoPlane.setAttribute('height', '0.6');
+                    infoPlane.setAttribute('height', '1.0'); // Increased height to show more text
                     infoPlane.setAttribute('color', '#2980b9');
                     infoPlane.setAttribute('opacity', '0.95');
                     infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
@@ -848,14 +848,14 @@
 
                     // Info text (kept as version 3 layout)
                     const infoText = document.createElement('a-text');
-                    const maxDescriptionLength = 120;
-                    const truncatedDescription = description.length > maxDescriptionLength ? description.substring(0, maxDescriptionLength) + '...' : description;
-                    infoText.setAttribute('value', `${title}\n\n${truncatedDescription}`);
+                    // Removed truncation logic
+                    infoText.setAttribute('value', `${title}\n\n${description}`);
                     infoText.setAttribute('position', '0 0 0.01');
                     infoText.setAttribute('align', 'center');
                     infoText.setAttribute('color', '#ffffff');
                     infoText.setAttribute('scale', '0.12 0.12 0.12');
-                    infoText.setAttribute('wrap-count', '20');
+                    infoText.setAttribute('wrap-count', '35'); // Adjusted wrap-count for more characters per line
+                    infoText.setAttribute('billboard', 'true'); // Added to fix potential mirroring issues
                     infoPlane.appendChild(infoText);
 
                     // Re-added instructions text (from version 4 layout, but updated for pan/zoom only)
