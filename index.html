@@ -279,14 +279,14 @@
                     this.lastX = currentX;
                     this.lastY = currentY;
 
-                    // Zoom with pinch
+                    // Zoom with pinch - REVERTED TO CORRECT LOGIC
                     const currentPinchDistance = Math.hypot(
                         touch1.clientX - touch2.clientX,
                         touch1.clientY - touch2.clientY
                     );
                     if (this.initialPinchDistance) {
                         const scaleFactor = currentPinchDistance / this.initialPinchDistance;
-                        let newScale = this.el.object3D.scale.x * scaleFactor;
+                        let newScale = this.el.object3D.scale.x * scaleFactor; // Corrected line
                         newScale = Math.max(this.data.minScale, Math.min(this.data.maxScale, newScale));
                         this.el.object3D.scale.set(newScale, newScale, newScale);
                         this.initialPinchDistance = currentPinchDistance; // Update for next move
@@ -837,14 +837,14 @@
                     // Info panel
                     const infoPlane = document.createElement('a-plane');
                     infoPlane.setAttribute('class', 'clickable');
-                    infoPlane.setAttribute('position', '0 -0.3 0.01'); // Adjusted position: higher up
+                    infoPlane.setAttribute('position', '0 -0.15 0.01'); // Adjusted position: higher up
                     infoPlane.setAttribute('width', '1');
-                    infoPlane.setAttribute('height', '1.0'); // Keep increased height
+                    infoPlane.setAttribute('height', '0.7'); // Adjusted height
                     infoPlane.setAttribute('color', '#2980b9');
                     infoPlane.setAttribute('opacity', '0.95');
                     infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
                     infoPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
-                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.27 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine'); // Adjusted animation target
+                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.12 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine'); // Adjusted animation target
 
                     // Info text
                     const infoText = document.createElement('a-text');
@@ -864,7 +864,7 @@
                         : '🖱️ Kéo di chuyển • 🔄 Cuộn chuột Zoom';
 
                     instructionsText.setAttribute('value', instructions);
-                    instructionsText.setAttribute('position', '0 -0.9 0.01'); // Adjusted position: below the new infoPlane position
+                    instructionsText.setAttribute('position', '0 -0.9 0.01'); // Positioned below the new infoPlane
                     instructionsText.setAttribute('align', 'center');
                     instructionsText.setAttribute('color', '#3498db');
                     instructionsText.setAttribute('scale', '0.1 0.1 0.1'); // Smaller scale for instructions
