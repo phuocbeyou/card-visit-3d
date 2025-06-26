@@ -82,51 +82,6 @@
             width: 0%;
             transition: width 0.3s ease;
         }
-
-        /* New styles for the HTML overlay */
-        #ar-info-overlay {
-            position: absolute;
-            bottom: 5%;
-            /* Adjust as needed */
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            /* Adjust width */
-            max-width: 400px;
-            /* Max width for larger screens */
-            height: 30%;
-            /* Fixed height for scrollable area */
-            background-color: rgba(41, 128, 185, 0.95);
-            /* #2980b9 with opacity */
-            border-radius: 8px;
-            padding: 15px;
-            box-sizing: border-box;
-            color: white;
-            font-family: sans-serif;
-            overflow-y: auto;
-            /* Enable vertical scrolling */
-            z-index: 5;
-            /* Ensure it's above the AR scene but below loading messages */
-            display: none;
-            /* Hidden by default, shown when target found */
-            text-align: center;
-            /* Center align content */
-        }
-
-        #ar-info-overlay h2 {
-            font-size: 1.5em;
-            margin-top: 0;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-
-        #ar-info-overlay p {
-            font-size: 0.9em;
-            line-height: 1.4;
-            text-align: justify;
-            margin-bottom: 0;
-            /* Remove default paragraph margin */
-        }
     </style>
 </head>
 
@@ -134,20 +89,6 @@
     <div id="loading-message">Đang tải dữ liệu AR...</div>
     <div id="progress-container" class="progress-bar" style="display: none;">
         <div id="progress-fill" class="progress-fill"></div>
-    </div>
-
-    <a-scene>
-        <!-- Camera and Lights -->
-        <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;"
-            raycaster="near: 10; far: 10000; objects: .clickable"></a-camera>
-        <a-light type="ambient" color="#FFFFFF" intensity="0.6"></a-light>
-        <a-light type="directional" position="1 1 1" color="#FFFFFF" intensity="0.4"></a-light>
-    </a-scene>
-
-    <!-- New HTML overlay for scrollable text -->
-    <div id="ar-info-overlay">
-        <h2 id="ar-info-title"></h2>
-        <p id="ar-info-description"></p>
     </div>
 
     <script>
@@ -746,11 +687,6 @@
             let currentImageTargetSrc = DEFAULT_IMAGE_TARGET_SRC;
             let hienVatDataArray = [];
 
-            // Get references to the HTML overlay elements
-            const arInfoOverlay = document.getElementById('ar-info-overlay');
-            const arInfoTitle = document.getElementById('ar-info-title');
-            const arInfoDescription = document.getElementById('ar-info-description');
-
             try {
                 const token = await getValidToken();
 
@@ -778,7 +714,7 @@
                 // Detect mobile device and adjust renderer settings
                 const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-                const scene = document.querySelector('a-scene'); // Get existing scene
+                const scene = document.createElement('a-scene');
                 // Set mindar-image attribute with the determined source
                 scene.setAttribute('mindar-image', `imageTargetSrc: ${currentImageTargetSrc}; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;`);
                 scene.setAttribute('color-space', 'sRGB');
@@ -793,16 +729,28 @@
                 scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
                 scene.setAttribute('loading-screen', 'enabled: false');
 
-                // Simplified lighting for mobile (already in HTML, just ensure intensity is set)
-                const ambientLight = scene.querySelector('a-light[type="ambient"]');
-                if (ambientLight) {
-                    ambientLight.setAttribute('intensity', isMobile ? '0.8' : '0.6');
-                }
-                const directionalLight = scene.querySelector('a-light[type="directional"]');
-                if (directionalLight) {
-                    directionalLight.setAttribute('visible', !isMobile); // Hide directional light on mobile
-                }
+                const camera = document.createElement('a-camera');
+                camera.setAttribute('position', '0 0 0');
+                camera.setAttribute('look-controls', 'enabled: false');
+                camera.setAttribute('cursor', 'fuse: false; rayOrigin: mouse;');
+                camera.setAttribute('raycaster', 'near: 10; far: 10000; objects: .clickable');
+                scene.appendChild(camera);
 
+                // Simplified lighting for mobile
+                const ambientLight = document.createElement('a-light');
+                ambientLight.setAttribute('type', 'ambient');
+                ambientLight.setAttribute('color', '#FFFFFF');
+                ambientLight.setAttribute('intensity', isMobile ? '0.8' : '0.6');
+                scene.appendChild(ambientLight);
+
+                if (!isMobile) {
+                    const directionalLight = document.createElement('a-light');
+                    directionalLight.setAttribute('type', 'directional');
+                    directionalLight.setAttribute('position', '1 1 1');
+                    directionalLight.setAttribute('color', '#FFFFFF');
+                    directionalLight.setAttribute('intensity', '0.4');
+                    scene.appendChild(directionalLight);
+                }
 
                 hienVatDataArray.forEach(hienVatData => {
                     // Prioritize model3dMobileJpg first, then model3dPcGlb as per original logic
@@ -819,8 +767,8 @@
                     portfolioPlane.setAttribute('position', '0.8 0.2 0.01');
                     portfolioPlane.setAttribute('width', '0.8');
                     portfolioPlane.setAttribute('height', '1');
-                    portfolioPlane.setAttribute('color', '#FFFFFF');
-                    portfolioPlane.setAttribute('opacity', '0.0'); // Keep transparent as text is in HTML overlay
+                    portfolioPlane.setAttribute('color', '#FFFFFF'); // Changed from 'transparent' to a valid color
+                    portfolioPlane.setAttribute('opacity', '0.0');
                     portfolioPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
                     portfolioPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
                     portfolioPlane.setAttribute('animation__float', 'property: position; to: 0.8 0.23 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
@@ -840,11 +788,6 @@
                     // Load model with progress tracking
                     arTarget.addEventListener('targetFound', async () => {
                         console.log(`Target ${targetIndex} found`);
-
-                        // Update HTML overlay content and show it
-                        arInfoTitle.textContent = title;
-                        arInfoDescription.textContent = description;
-                        arInfoOverlay.style.display = 'block';
 
                         if (modelEntity.getAttribute('data-loaded') === 'false') {
                             try {
@@ -889,10 +832,33 @@
                     arTarget.addEventListener('targetLost', () => {
                         console.log(`Target ${targetIndex} lost`);
                         modelEntity.setAttribute('visible', 'false');
-                        arInfoOverlay.style.display = 'none'; // Hide HTML overlay when target is lost
                     });
 
-                    // Instructions text (still in A-Frame, as it's short and static)
+                    // Info panel
+                    const infoPlane = document.createElement('a-plane');
+                    infoPlane.setAttribute('class', 'clickable');
+                    infoPlane.setAttribute('position', '0 -0.65 0.01');
+                    infoPlane.setAttribute('width', '1');
+                    infoPlane.setAttribute('height', '0.7'); // Adjusted height for fixed size
+                    infoPlane.setAttribute('color', '#2980b9');
+                    infoPlane.setAttribute('opacity', '0.95');
+                    infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
+                    infoPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
+                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+
+                    // Info text
+                    const infoText = document.createElement('a-text');
+                    infoText.setAttribute('value', `${title}\n\n${description}`);
+                    infoText.setAttribute('position', '0 0 0.01'); // Centered within the plane
+                    infoText.setAttribute('align', 'center');
+                    infoText.setAttribute('color', '#ffffff');
+                    infoText.setAttribute('scale', '0.12 0.12 0.12');
+                    infoText.setAttribute('wrap-count', '35');
+                    infoText.setAttribute('billboard', 'true'); // Keeps text facing camera
+                    infoText.setAttribute('charset', 'utf8'); // Explicitly set charset
+                    infoPlane.appendChild(infoText);
+
+                    // Re-added instructions text
                     const instructionsText = document.createElement('a-text');
                     const instructions = isMobile
                         ? '👆 Kéo di chuyển • 🤏 Zoom'
@@ -903,8 +869,7 @@
                     instructionsText.setAttribute('align', 'center');
                     instructionsText.setAttribute('color', '#3498db');
                     instructionsText.setAttribute('scale', '0.1 0.1 0.1'); // Smaller scale for instructions
-                    instructionsText.setAttribute('billboard', 'true'); // Ensure it faces camera
-                    arTarget.appendChild(instructionsText);
+                    arTarget.appendChild(instructionsText); // Append directly to arTarget
 
 
                     // Add click interaction for portfolio plane
@@ -920,7 +885,7 @@
                     // Assemble the AR target
                     arTarget.appendChild(portfolioPlane);
                     arTarget.appendChild(modelEntity);
-                    // Removed infoPlane and infoText from A-Frame, now handled by HTML overlay
+                    arTarget.appendChild(infoPlane); // Append infoPlane (which contains infoText)
 
                     scene.appendChild(arTarget);
                 });
@@ -939,6 +904,15 @@
                     loadingMessage.style.display = 'block';
                     updateProgress(100); // Hide progress bar on error
                 });
+
+                // Replace body content with scene
+                const progressContainer = document.getElementById('progress-container');
+                document.body.innerHTML = '';
+                document.body.appendChild(loadingMessage);
+                if (progressContainer) {
+                    document.body.appendChild(progressContainer);
+                }
+                document.body.appendChild(scene);
 
                 console.log(`AR Scene initialized with ${hienVatDataArray.length} models`);
 
