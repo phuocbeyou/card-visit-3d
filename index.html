@@ -3,11 +3,16 @@
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8">
     <!-- Three.js GLTFLoader and DRACOLoader for advanced model loading -->
     <script src="https://unpkg.com/three@0.158.0/examples/jsm/loaders/GLTFLoader.js"></script>
     <script src="https://unpkg.com/three@0.158.0/examples/jsm/loaders/DRACOLoader.js"></script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- Google Fonts for Vietnamese support -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -18,7 +23,7 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             font-size: 1.2em;
         }
 
@@ -35,7 +40,7 @@
             transform: translate(-50%, -50%);
             text-align: center;
             z-index: 10;
-            /* Ensure it's above the scene */
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         }
 
         #loading-message::after {
@@ -64,7 +69,6 @@
         .progress-bar {
             position: absolute;
             top: calc(50% + 30px);
-            /* Position below loading message */
             left: 50%;
             transform: translate(-50%, -50%);
             width: 200px;
@@ -73,7 +77,6 @@
             border-radius: 2px;
             overflow: hidden;
             z-index: 10;
-            /* Ensure it's above the scene */
         }
 
         .progress-fill {
@@ -83,49 +86,92 @@
             transition: width 0.3s ease;
         }
 
-        /* New styles for the HTML overlay */
+        /* Enhanced styles for the HTML overlay with better Vietnamese font support and scrolling */
         #ar-info-overlay {
             position: absolute;
             bottom: 5%;
-            /* Adjust as needed */
             left: 50%;
             transform: translateX(-50%);
             width: 90%;
-            /* Adjust width */
             max-width: 400px;
-            /* Max width for larger screens */
             height: 30%;
-            /* Fixed height for scrollable area */
+            min-height: 200px;
+            /* Ensure minimum height */
             background-color: rgba(41, 128, 185, 0.95);
-            /* #2980b9 with opacity */
             border-radius: 8px;
             padding: 15px;
             box-sizing: border-box;
             color: white;
-            font-family: sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             overflow-y: auto;
-            /* Enable vertical scrolling */
+            overflow-x: hidden;
+            /* Prevent horizontal scroll */
             z-index: 5;
-            /* Ensure it's above the AR scene but below loading messages */
             display: none;
-            /* Hidden by default, shown when target found */
             text-align: center;
-            /* Center align content */
+            /* Enhanced scrollbar styling */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
+        }
+
+        /* Webkit scrollbar styling for better appearance */
+        #ar-info-overlay::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #ar-info-overlay::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        #ar-info-overlay::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 3px;
+        }
+
+        #ar-info-overlay::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.7);
         }
 
         #ar-info-overlay h2 {
             font-size: 1.5em;
+            font-weight: 600;
             margin-top: 0;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             text-align: center;
+            line-height: 1.3;
+            /* Better line height for Vietnamese text */
         }
 
         #ar-info-overlay p {
             font-size: 0.9em;
-            line-height: 1.4;
+            font-weight: 400;
+            line-height: 1.6;
+            /* Improved line height for better readability */
             text-align: justify;
             margin-bottom: 0;
-            /* Remove default paragraph margin */
+            word-wrap: break-word;
+            /* Handle long words */
+            hyphens: auto;
+            /* Enable hyphenation */
+        }
+
+        /* Add a subtle scroll indicator */
+        #ar-info-overlay::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(transparent, rgba(41, 128, 185, 0.95));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #ar-info-overlay.scrollable::after {
+            opacity: 1;
         }
     </style>
 </head>
@@ -144,7 +190,7 @@
         <a-light type="directional" position="1 1 1" color="#FFFFFF" intensity="0.4"></a-light>
     </a-scene>
 
-    <!-- New HTML overlay for scrollable text -->
+    <!-- Enhanced HTML overlay for scrollable text with Vietnamese font support -->
     <div id="ar-info-overlay">
         <h2 id="ar-info-title"></h2>
         <p id="ar-info-description"></p>
@@ -735,6 +781,16 @@
             }
         }
 
+        // Function to check if content is scrollable and add visual indicator
+        function updateScrollIndicator() {
+            const overlay = document.getElementById('ar-info-overlay');
+            if (overlay.scrollHeight > overlay.clientHeight) {
+                overlay.classList.add('scrollable');
+            } else {
+                overlay.classList.remove('scrollable');
+            }
+        }
+
         async function initializeARScene() {
             const loadingMessage = document.getElementById('loading-message');
             loadingMessage.textContent = "Đang tải dữ liệu AR...";
@@ -845,6 +901,9 @@
                         arInfoTitle.textContent = title;
                         arInfoDescription.textContent = description;
                         arInfoOverlay.style.display = 'block';
+
+                        // Check if content needs scrolling and update indicator
+                        setTimeout(updateScrollIndicator, 100);
 
                         if (modelEntity.getAttribute('data-loaded') === 'false') {
                             try {
@@ -962,7 +1021,7 @@
                 border-radius: 6px;
                 font-size: 16px;
                 cursor: pointer;
-                font-family: sans-serif;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             `;
                 retryButton.addEventListener('click', () => {
                     window.location.reload();
