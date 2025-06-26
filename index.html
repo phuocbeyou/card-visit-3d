@@ -701,7 +701,7 @@
                 // Always fetch all HienVat3D models when 'type' is provided
                 console.log("Fetching all HienVat items...");
                 const fetchedList = await fetchHienVatList(token);
-                hienVatDataArray = fetchedList.filter(data => data.model3dPcJpg || data.model3dPcGlb);
+                hienVatDataArray = fetchedList.filter(data => data.model3dMobileJpg || data.model3dPcJpg);
 
                 if (hienVatDataArray.length === 0) {
                     alert("Không tìm thấy dữ liệu mô hình 3D hợp lệ nào (có thể do thiếu mô hình 3D).");
@@ -753,8 +753,8 @@
                 }
 
                 hienVatDataArray.forEach(hienVatData => {
-                    // Prioritize model3dPcJpg first, then model3dPcGlb as per original logic
-                    const modelUrl = hienVatData.model3dPcJpg || hienVatData.model3dPcGlb;
+                    // Prioritize model3dMobileJpg first, then model3dPcGlb as per original logic
+                    const modelUrl = hienVatData.model3dMobileJpg || hienVatData.model3dPcGlb;
                     const targetIndex = hienVatData.stt - 1; // Assuming stt maps to targetIndex
                     const title = hienVatData.tenHienVat3D;
                     const description = hienVatData.gioiThieu;
