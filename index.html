@@ -755,12 +755,16 @@
 
             try {
                 const token = await getValidToken();
+                console.log('DEBUG: Token obtained, proceeding with AR scene initialization.'); // DEBUG LOG
 
                 // Dynamically set IMAGE_TARGET_SRC based on 'type' parameter
                 if (type) {
                     currentImageTargetSrc = await fetchImageTargetSource(token, type);
+                    console.log('DEBUG: Image target source fetched:', currentImageTargetSrc); // DEBUG LOG
                 } else {
-                    loadingMessage.textContent = "Lỗi: Không có tham số 'type' được cung cấp trong URL. Vui lòng sử dụng URL như: /index.html?type=MIND-001";
+                    loadingMessage.innerHTML = "Lỗi: Không có tham số 'type' được cung cấp trong URL.<br>Vui lòng sử dụng URL như: <br><code>/index.html?type=MIND-001</code>";
+                    loadingMessage.style.color = 'red'; // Make it stand out
+                    loadingMessage.style.fontSize = '1.5em'; // Make it larger
                     return;
                 }
 
@@ -768,6 +772,7 @@
                 console.log("Fetching all HienVat items...");
                 const fetchedList = await fetchHienVatList(token);
                 hienVatDataArray = fetchedList.filter(data => data.model3dMobileJpg || data.model3dPcJpg);
+                console.log('DEBUG: HienVat list fetched. Number of valid models:', hienVatDataArray.length); // DEBUG LOG
 
                 if (hienVatDataArray.length === 0) {
                     alert("Không tìm thấy dữ liệu mô hình 3D hợp lệ nào (có thể do thiếu mô hình 3D).");
@@ -781,8 +786,10 @@
                 const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
                 const scene = document.querySelector('a-scene'); // Get existing scene
+                console.log('DEBUG: Setting MindAR-image attribute.'); // DEBUG LOG
                 // Set mindar-image attribute with the determined source
                 scene.setAttribute('mindar-image', `imageTargetSrc: ${currentImageTargetSrc}; autoStart: true; showStats: false; uiLoading: no; uiScanning: no; uiError: no;`);
+                console.log('DEBUG: MindAR-image attribute set.'); // DEBUG LOG
                 scene.setAttribute('color-space', 'sRGB');
 
                 // Optimize renderer settings for mobile
@@ -926,6 +933,7 @@
 
                     scene.appendChild(arTarget);
                 });
+                console.log('DEBUG: All AR targets and models entities created in DOM.'); // DEBUG LOG
 
                 // Scene ready handler
                 scene.addEventListener('loaded', () => {
@@ -945,27 +953,27 @@
                 console.log(`AR Scene initialized with ${hienVatDataArray.length} models`);
 
             } catch (error) {
-                console.error('Failed to initialize AR scene:', error);
-                loadingMessage.textContent = `Lỗi: ${error.message}`;
+                console.error('Failed to initialize AR scene:', error); // Keep this
+                loadingMessage.textContent = `Lỗi: ${error.message}. Vui lòng kiểm tra console để biết chi tiết.`; // Enhanced error message
                 loadingMessage.style.display = 'block';
 
                 // Show retry button
                 const retryButton = document.createElement('button');
                 retryButton.textContent = 'Thử lại';
                 retryButton.style.cssText = `
-              position: absolute;
-              top: 60%;
-              left: 50%;
-              transform: translate(-50%, -50%);
-              padding: 12px 24px;
-              background: #3498db;
-              color: white;
-              border: none;
-              border-radius: 6px;
-              font-size: 16px;
-              cursor: pointer;
-              font-family: sans-serif;
-          `;
+          position: absolute;
+          top: 60%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          padding: 12px 24px;
+          background: #3498db;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 16px;
+          cursor: pointer;
+          font-family: 'Roboto', sans-serif; /* Apply font to button */
+      `;
                 retryButton.addEventListener('click', () => {
                     window.location.reload();
                 });
