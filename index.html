@@ -8,6 +8,8 @@
     <script src="https://unpkg.com/three@0.158.0/examples/jsm/loaders/DRACOLoader.js"></script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <!-- Thêm script cho aframe-html-shader -->
+    <script src="https://unpkg.com/aframe-html-shader@0.2.0/dist/aframe-html-shader.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -82,6 +84,63 @@
             width: 0%;
             transition: width 0.3s ease;
         }
+
+        /* CSS cho các phần tử HTML được nhúng */
+        .info-panel-content {
+            width: 300px;
+            /* Chiều rộng của panel */
+            height: 250px;
+            /* Đã tăng chiều cao để có thêm không gian cho mô tả */
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            /* Đã thay đổi để căn chỉnh nội dung từ trên xuống */
+            align-items: center;
+            text-align: center;
+            color: #FFFF00;
+            /* Đã thay đổi màu chữ thành vàng */
+            font-family: 'Roboto', sans-serif;
+            /* Sử dụng font hỗ trợ tiếng Việt */
+            font-size: 24px;
+            /* Đã tăng kích thước font */
+            line-height: 1.4;
+            /* overflow: auto; */
+            /* Tạm thời bỏ overflow để thấy toàn bộ nội dung */
+            background-color: #FF0000;
+            /* Đã thay đổi màu nền thành ĐỎ để dễ debug */
+            border-radius: 8px;
+            /* Thêm bo góc cho đẹp */
+        }
+
+        .info-panel-content h3 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            /* Đã tăng kích thước font */
+            font-weight: bold;
+        }
+
+        .info-panel-content p {
+            margin: 0;
+            font-size: 20px;
+            /* Đã tăng kích thước font */
+        }
+
+        .instructions-text {
+            width: 300px;
+            text-align: center;
+            color: #00FF00;
+            /* Đã thay đổi màu chữ thành xanh lá cây */
+            font-family: 'Roboto', sans-serif;
+            font-size: 20px;
+            /* Đã tăng kích thước font */
+            margin-top: 10px;
+            background-color: #0000FF;
+            /* Đã thay đổi màu nền thành XANH DƯƠNG */
+            padding: 5px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 
@@ -90,6 +149,30 @@
     <div id="progress-container" class="progress-bar" style="display: none;">
         <div id="progress-fill" class="progress-fill"></div>
     </div>
+
+    <a-scene embedded vr-mode-ui="enabled: false">
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <!-- ENTITY TEST HTML-SHADER TỐI GIẢN -->
+        <a-entity position="0 0 -2" scale="0.02 0.02 0.02" look-at="[camera]" render-order="99" html-shader="
+                    html: <div style='width: 400px; height: 150px; background-color: #00FFFF; color: #FF00FF; text-align: center; padding: 20px; font-size: 30px; font-family: sans-serif;'>
+                            TEST HTML-SHADER
+                          </div>;
+                    transparent: true;
+                    shader: html;
+                    targetWidth: 400;
+                    targetHeight: 150;
+                    debug: true;
+                    side: double;
+                    depthTest: false;
+                ">
+        </a-entity>
+        <!-- KẾT THÚC ENTITY TEST -->
+
+        <!-- Thêm một hộp đơn giản để kiểm tra xem cảnh có hiển thị không -->
+        <a-box position="0 0 -3" color="green" width="0.5" height="0.5" depth="0.5"></a-box>
+
+    </a-scene>
 
     <script>
         // LOD (Level of Detail) component
@@ -286,7 +369,7 @@
                     );
                     if (this.initialPinchDistance) {
                         const scaleFactor = currentPinchDistance / this.initialPinchDistance;
-                        let newScale = this.el.object3D.scale.x * scaleFactor;
+                        let newScale = this.el.object3D.scale.x - evt.deltaY * this.data.zoomSpeed;
                         newScale = Math.max(this.data.minScale, Math.min(this.data.maxScale, newScale));
                         this.el.object3D.scale.set(newScale, newScale, newScale);
                         this.initialPinchDistance = currentPinchDistance; // Update for next move
@@ -752,6 +835,28 @@
                     scene.appendChild(directionalLight);
                 }
 
+                // --- THÊM ENTITY TEST HTML-SHADER TRỰC TIẾP VÀO SCENE ĐỂ DEBUG ---
+                const testHtmlEntity = document.createElement('a-entity');
+                testHtmlEntity.setAttribute('position', '0 0 -2'); // Đặt ở vị trí dễ thấy, phía trước camera
+                testHtmlEntity.setAttribute('scale', '0.02 0.02 0.02'); // Kích thước lớn
+                testHtmlEntity.setAttribute('look-at', '[camera]'); // Luôn hướng về camera
+                testHtmlEntity.setAttribute('render-order', '99'); // Đảm bảo render trên cùng
+                testHtmlEntity.setAttribute('html-shader', `
+                    html: <div style="width: 400px; height: 150px; background-color: #00FFFF; color: #FF00FF; text-align: center; padding: 20px; font-size: 30px; font-family: sans-serif;">
+                            TEST HTML-SHADER
+                          </div>;
+                    transparent: true;
+                    shader: html;
+                    targetWidth: 400;
+                    targetHeight: 150;
+                    debug: true;
+                    side: double;
+                    depthTest: false;
+                `);
+                scene.appendChild(testHtmlEntity);
+                // --- KẾT THÚC ENTITY TEST ---
+
+
                 hienVatDataArray.forEach(hienVatData => {
                     // Prioritize model3dMobileJpg first, then model3dPcGlb as per original logic
                     const modelUrl = hienVatData.model3dMobileJpg || hienVatData.model3dPcGlb;
@@ -834,43 +939,67 @@
                         modelEntity.setAttribute('visible', 'false');
                     });
 
-                    // Info panel
-                    const infoPlane = document.createElement('a-plane');
-                    infoPlane.setAttribute('class', 'clickable');
-                    infoPlane.setAttribute('position', '0 -0.65 0.01');
-                    infoPlane.setAttribute('width', '1');
-                    infoPlane.setAttribute('height', '0.7'); // Adjusted height for fixed size
-                    infoPlane.setAttribute('color', '#2980b9');
-                    infoPlane.setAttribute('opacity', '0.95');
-                    infoPlane.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
-                    infoPlane.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
-                    infoPlane.setAttribute('animation__float', 'property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
+                    // Info panel (sử dụng a-entity với html-shader trực tiếp)
+                    const infoHtmlEntity = document.createElement('a-entity');
+                    infoHtmlEntity.setAttribute('class', 'clickable'); // Giữ lại class clickable
+                    infoHtmlEntity.setAttribute('position', '0 -0.65 0.01'); // Vị trí của panel
+                    infoHtmlEntity.setAttribute('width', '1'); // Chiều rộng của panel
+                    infoHtmlEntity.setAttribute('height', '0.7'); // Chiều cao của panel
+                    infoHtmlEntity.setAttribute('scale', '0.01 0.01 0.01'); // Đã tăng scale đáng kể
+                    infoHtmlEntity.setAttribute('look-at', '[camera]'); // Luôn hướng về camera
+                    infoHtmlEntity.setAttribute('render-order', '1'); // Đảm bảo render sau các đối tượng khác
+                    infoHtmlEntity.setAttribute('html-shader', `
+                        html: <div class="info-panel-content">
+                                <h3>${title || 'TIÊU ĐỀ KHÔNG CÓ'}</h3>
+                                <p>${description || 'MÔ TẢ KHÔNG CÓ: Đây là văn bản kiểm tra để đảm bảo hiển thị. Nếu bạn thấy dòng này, html-shader đang hoạt động.'}</p>
+                              </div>;
+                        transparent: true;
+                        shader: html;
+                        targetWidth: 300; /* Chiều rộng của HTML content */
+                        targetHeight: 250; /* Đã cập nhật chiều cao để khớp với CSS */
+                        debug: true; /* Thêm thuộc tính debug */
+                        side: double; /* Render từ cả hai phía */
+                        depthTest: false; /* Tắt kiểm tra độ sâu để luôn hiển thị trên cùng */
+                    `);
+                    infoHtmlEntity.setAttribute('animation__hover', 'property: scale; to: 1.05 1.05 1.05; startEvents: mouseenter; dur: 400');
+                    infoHtmlEntity.setAttribute('animation__unhover', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 400');
+                    infoHtmlEntity.setAttribute('animation__float', 'property: position; to: 0 -0.62 0.01; dir: alternate; loop: true; dur: 3000; easing: easeInOutSine');
 
-                    // Info text
-                    const infoText = document.createElement('a-text');
-                    infoText.setAttribute('value', `${title}\n\n${description}`);
-                    infoText.setAttribute('position', '0 0 0.01'); // Centered within the plane
-                    infoText.setAttribute('align', 'center');
-                    infoText.setAttribute('color', '#ffffff');
-                    infoText.setAttribute('scale', '0.12 0.12 0.12');
-                    infoText.setAttribute('wrap-count', '35');
-                    infoText.setAttribute('billboard', 'true'); // Keeps text facing camera
-                    infoText.setAttribute('charset', 'utf8'); // Explicitly set charset
-                    infoPlane.appendChild(infoText);
 
-                    // Re-added instructions text
-                    const instructionsText = document.createElement('a-text');
+                    // Re-added instructions text (sử dụng a-entity với html-shader)
+                    const instructionsHtmlEntity = document.createElement('a-entity');
                     const instructions = isMobile
                         ? '👆 Kéo di chuyển • 🤏 Zoom'
                         : '🖱️ Kéo di chuyển • 🔄 Cuộn chuột Zoom';
 
-                    instructionsText.setAttribute('value', instructions);
-                    instructionsText.setAttribute('position', '0 -0.85 0.01'); // Adjusted position to be below info panel
-                    instructionsText.setAttribute('align', 'center');
-                    instructionsText.setAttribute('color', '#3498db');
-                    instructionsText.setAttribute('scale', '0.1 0.1 0.1'); // Smaller scale for instructions
-                    arTarget.appendChild(instructionsText); // Append directly to arTarget
+                    instructionsHtmlEntity.setAttribute('position', '0 -0.85 0.01'); // Adjusted position to be below info panel
+                    instructionsHtmlEntity.setAttribute('scale', '0.01 0.01 0.01'); // Đã tăng scale đáng kể
+                    instructionsHtmlEntity.setAttribute('look-at', '[camera]'); // Luôn hướng về camera
+                    instructionsHtmlEntity.setAttribute('render-order', '1'); // Đảm bảo render sau các đối tượng khác
+                    instructionsHtmlEntity.setAttribute('html-shader', `
+                        html: <div class="instructions-text">${instructions}</div>;
+                        transparent: true;
+                        shader: html;
+                        targetWidth: 300;
+                        targetHeight: 50;
+                        debug: true; /* Thêm thuộc tính debug */
+                        side: double; /* Render từ cả hai phía */
+                        depthTest: false; /* Tắt kiểm tra độ sâu để luôn hiển thị trên cùng */
+                    `);
+                    arTarget.appendChild(instructionsHtmlEntity); // Append directly to arTarget
 
+
+                    // Add a simple box behind the info panel to visualize its position
+                    // debugBox này sẽ nằm trong infoHtmlEntity, giúp xác định vị trí của nó
+                    const debugBox = document.createElement('a-box');
+                    debugBox.setAttribute('position', '0 0 0'); // Vị trí tương đối với infoHtmlEntity
+                    debugBox.setAttribute('width', '0.3'); // Corresponds to targetWidth 300px at scale 0.01
+                    debugBox.setAttribute('height', '0.25'); // Corresponds to targetHeight 250px at scale 0.01
+                    debugBox.setAttribute('depth', '0.01');
+                    debugBox.setAttribute('color', '#880088'); // Màu tím nổi bật
+                    debugBox.setAttribute('opacity', '0.5');
+                    debugBox.setAttribute('visible', 'true'); // Đảm bảo luôn hiển thị
+                    infoHtmlEntity.appendChild(debugBox); // Đặt hộp này làm con của infoHtmlEntity để nó di chuyển cùng
 
                     // Add click interaction for portfolio plane
                     portfolioPlane.addEventListener('click', () => {
@@ -885,7 +1014,7 @@
                     // Assemble the AR target
                     arTarget.appendChild(portfolioPlane);
                     arTarget.appendChild(modelEntity);
-                    arTarget.appendChild(infoPlane); // Append infoPlane (which contains infoText)
+                    arTarget.appendChild(infoHtmlEntity); // Append infoHtmlEntity (đã gộp)
 
                     scene.appendChild(arTarget);
                 });
